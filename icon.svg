@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <title>Fluxer for Unraid</title>
+  <rect width="128" height="128" rx="28" fill="#161b2c"/>
+  <path d="M26 28h76a10 10 0 0 1 10 10v43a10 10 0 0 1-10 10H57L34 109V91h-8a10 10 0 0 1-10-10V38a10 10 0 0 1 10-10Z" fill="#8c78f8"/>
+  <g fill="#fff"><circle cx="40" cy="60" r="7"/><circle cx="64" cy="60" r="7"/><circle cx="88" cy="60" r="7"/></g>
+</svg>

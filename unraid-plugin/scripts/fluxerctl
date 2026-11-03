@@ -1,0 +1,144 @@
+#!/bin/bash
+set -euo pipefail
+umask 077
+
+plugin_dir=${FLUXER_PLUGIN_DIR:-/usr/local/emhttp/plugins/fluxer}
+project_dir=${FLUXER_PROJECT_DIR:-/mnt/user/appdata/fluxer}
+lock_file=${FLUXER_LOCK_FILE:-/var/lock/fluxer-unraid.lock}
+action=${1:-status}
+shift || true
+
+fail() { printf '%s\n' "$*" >&2; exit 1; }
+env_value() {
+  local line value
+  [[ -f "$project_dir/.env" ]] || return 1
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == "$1="* ]]; then
+      value=${line#*=}
+      value=${value#\'}
+      value=${value%\'}
+      printf '%s' "$value"
+      return 0
+    fi
+  done < "$project_dir/.env"
+  return 1
+}
+compose_available() { command -v docker >/dev/null && docker compose version >/dev/null 2>&1; }
+vpn_ready() {
+  local expected actual
+  expected=$(env_value FLUXER_VPN_IP) || return 1
+  [[ -n "$expected" ]] || return 1
+  command -v tailscale >/dev/null || return 1
+  actual=$(tailscale ip -4 2>/dev/null) || return 1
+  [[ "$actual" == "$expected" ]]
+}
+check_runtime() {
+  local version major minor patch
+  compose_available || fail 'Install Compose Manager Plus from Apps before you start Fluxer.'
+  version=$(docker compose version --short)
+  version=${version#v}
+  [[ "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]] || fail 'Cannot read the Docker Compose version.'
+  major=${BASH_REMATCH[1]}
+  minor=${BASH_REMATCH[2]}
+  patch=${BASH_REMATCH[3]}
+  (( major > 2 || (major == 2 && (minor > 24 || (minor == 24 && patch >= 4))) )) || fail 'Update Docker Compose to version 2.24.4 or newer.'
+  version=$(docker version --format '{{.Server.Version}}' 2>/dev/null) || fail 'Start Docker from Unraid Settings before you start Fluxer.'
+  major=${version%%.*}
+  [[ "$major" =~ ^[0-9]+$ ]] && (( major >= 25 )) || fail 'Docker Engine 25 or newer is required.'
+  vpn_ready || fail 'Connect the Tailscale host plugin. Its IPv4 address must match the saved VPN address.'
+}
+check_project_ownership() {
+  local owner expected owners
+  expected=$(cd "$project_dir" && pwd -P)
+  owners=$(docker ps -a --filter label=com.docker.compose.project=fluxer --format '{{.Label "com.docker.compose.project.working_dir"}}') || fail 'Cannot check the existing Docker projects.'
+  while IFS= read -r owner; do
+    [[ -z "$owner" || "$owner" == "$expected" || "$owner" == "$project_dir" ]] || fail 'Another Fluxer Compose project exists. Keep its data and settings. Use its original project folder.'
+  done <<< "$owners"
+}
+
+case "$action" in
+  status)
+    [[ $# == 0 ]] || fail 'Status takes no arguments.'
+    if [[ -e "$lock_file" ]] && ! flock -n "$lock_file" true; then
+      printf '%s\n' 'Operation in progress.'
+    fi
+    if [[ ! -f "$project_dir/.env" ]]; then
+      printf '%s\n' 'Fluxer needs its first setup.'
+    elif ! compose_available; then
+      printf '%s\n' 'Install Compose Manager Plus from Apps to manage the Fluxer containers.'
+    else
+      cd "$project_dir"
+      docker compose ps --all --format '{{.Service}}: {{.State}} ({{.Health}})'
+    fi
+    exit 0
+    ;;
+  autostart)
+    [[ $# == 0 ]] || fail 'Autostart takes no arguments.'
+    [[ -f "$project_dir/.unraid-autostart" && -f "$project_dir/.env" ]] || exit 0
+    for (( attempt=0; attempt<40; attempt++ )); do
+      [[ -f "$project_dir/.unraid-autostart" ]] || exit 0
+      if compose_available && vpn_ready; then break; fi
+      sleep 3
+    done
+    [[ -f "$project_dir/.unraid-autostart" ]] || exit 0
+    action=start
+    ;;
+  check)
+    [[ $# == 0 ]] || fail 'Check takes no arguments.'
+    [[ -f "$project_dir/.env" ]] || fail 'Configure Fluxer before you start it.'
+    check_runtime
+    check_project_ownership
+    for token in cloudflare-dns-token cloudflare-tunnel-token; do
+      [[ -s "$project_dir/secrets/$token" ]] || fail 'Save both Cloudflare tokens before you start Fluxer.'
+    done
+    printf '%s\n' 'Fluxer is ready to start.'
+    exit 0
+    ;;
+  prepare|start|stop) ;;
+  *) fail 'Use prepare, check, start, stop, status, or autostart.' ;;
+esac
+
+mkdir -p -- "$(dirname -- "$lock_file")"
+exec 9>"$lock_file"
+flock -n 9 || fail 'Another Fluxer operation is in progress.'
+
+case "$action" in
+  prepare)
+    [[ $# == 3 ]] || fail 'Prepare needs the domain, certificate email, and VPN address.'
+    [[ ! -e "$project_dir/.env" ]] || fail 'Fluxer already has settings. Keep the existing application keys.'
+    [[ -f "$plugin_dir/bundle/setup.sh" ]] || fail 'The deployment bundle is missing. Reinstall the Fluxer plugin.'
+    if [[ "$project_dir" == /mnt/user/appdata/fluxer ]]; then
+      mountpoint -q /mnt/user || fail 'Start the array and user shares before you configure Fluxer.'
+    fi
+    mkdir -p -m 700 -- "$project_dir"
+    cp -R "$plugin_dir/bundle/." "$project_dir/"
+    cd "$project_dir"
+    bash setup.sh "$1" "$2" "$3"
+    printf '%s\n' 'Settings saved. The containers remain stopped until you click Start.'
+    ;;
+  start)
+    [[ $# == 0 ]] || fail 'Start takes no arguments.'
+    [[ -f "$project_dir/.env" ]] || fail 'Configure Fluxer before you start it.'
+    check_runtime
+    check_project_ownership
+    cd "$project_dir"
+    bash start.sh
+    if [[ -f .cloudflare-tokens-changed ]]; then
+      docker compose up -d --force-recreate traefik cloudflared
+      rm -f -- .cloudflare-tokens-changed
+    fi
+    : > .unraid-autostart
+    chmod 600 .unraid-autostart
+    printf '%s\n' 'Fluxer start completed. The services can need several minutes to become healthy.'
+    ;;
+  stop)
+    [[ $# == 0 ]] || fail 'Stop takes no arguments.'
+    [[ -f "$project_dir/.env" ]] || fail 'Fluxer has no saved settings.'
+    compose_available || fail 'Install Compose Manager Plus to manage this stack.'
+    check_project_ownership
+    cd "$project_dir"
+    rm -f -- .unraid-autostart
+    docker compose stop
+    printf '%s\n' 'Fluxer stopped. Its data and settings remain in appdata.'
+    ;;
+esac

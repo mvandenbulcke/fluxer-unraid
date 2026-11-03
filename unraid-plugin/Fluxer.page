@@ -1,0 +1,196 @@
+Menu="NetworkServices"
+Icon="comments"
+Title="Fluxer"
+Type="xmenu"
+Markdown="false"
+---
+<div id="fluxer-manager">
+  <p>Calls need Tailscale on each device. The web app uses Cloudflare Tunnel.</p>
+  <p id="fluxer-message" role="status" aria-live="polite"></p>
+  <div id="fluxer-prerequisites" hidden>
+    <p id="fluxer-compose-required" hidden>Install <strong>Compose Manager Plus</strong> from <a href="/Apps">Apps</a>.</p>
+    <p id="fluxer-tailscale-required" hidden>Install the <strong>Tailscale plugin</strong> from <a href="/Apps">Apps</a>.</p>
+    <p id="fluxer-array-required" hidden>Start the Unraid array before you save setup.</p>
+  </div>
+
+  <form id="fluxer-configure" autocomplete="off">
+    <table class="unraid"><thead><tr><td>Set up Fluxer</td></tr></thead></table>
+    <dl><dt><label for="fluxer-domain">Instance domain:</label></dt><dd><input id="fluxer-domain" name="domain" type="text" placeholder="chat.example.com" maxlength="253" required autocomplete="off" autocapitalize="none" spellcheck="false"></dd></dl>
+    <dl><dt><label for="fluxer-email">Certificate email:</label></dt><dd><input id="fluxer-email" name="email" type="email" placeholder="admin@example.com" maxlength="254" required autocomplete="off" autocapitalize="none" spellcheck="false"></dd></dl>
+    <dl><dt><label for="fluxer-vpn-ip">NAS Tailscale address:</label></dt><dd><input id="fluxer-vpn-ip" name="vpn_ip" type="text" placeholder="100.101.102.103" maxlength="15" required inputmode="decimal"><p>Connect the NAS to <a href="/Settings/Tailscale">Tailscale</a> before you start Fluxer.</p></dd></dl>
+    <dl><dt><label for="fluxer-dns-token">Cloudflare DNS token:</label></dt><dd><input id="fluxer-dns-token" name="dns_token" type="password" maxlength="8192" required autocomplete="new-password" spellcheck="false"><p>Use the DNS token for your domain with Zone DNS Edit and Zone Read access.</p></dd></dl>
+    <dl><dt><label for="fluxer-tunnel-token">Cloudflare Tunnel token:</label></dt><dd><input id="fluxer-tunnel-token" name="tunnel_token" type="password" maxlength="8192" required autocomplete="new-password" spellcheck="false"><p>Use the token from your Cloudflare Tunnel connector.</p></dd></dl>
+    <dl><dt></dt><dd><input id="fluxer-save" type="submit" value="Save setup" data-fluxer-action disabled></dd></dl>
+  </form>
+
+  <div id="fluxer-tunnel-route" hidden>
+    <table class="unraid"><thead><tr><td>Cloudflare Tunnel route</td></tr></thead></table>
+    <p>Use these values for the public hostname in <a href="https://one.dash.cloudflare.com/" target="_blank" rel="noopener noreferrer">Cloudflare Tunnel</a>.</p>
+    <dl><dt>Public hostname:</dt><dd><code id="fluxer-route-domain"></code></dd></dl>
+    <dl><dt>Service:</dt><dd>HTTPS</dd></dl>
+    <dl><dt>URL:</dt><dd><code>traefik:443</code></dd></dl>
+    <dl><dt>Origin Server Name:</dt><dd><code id="fluxer-route-origin"></code></dd></dl>
+    <p>Keep No TLS Verify disabled.</p>
+  </div>
+
+  <form id="fluxer-tokens" autocomplete="off" hidden>
+    <table class="unraid"><thead><tr><td>Cloudflare tokens</td></tr></thead></table>
+    <p>Setup exists. The form below changes only the Cloudflare tokens.</p>
+    <dl><dt><label for="fluxer-saved-dns">Cloudflare DNS token:</label></dt><dd><input id="fluxer-saved-dns" name="dns_token" type="password" maxlength="8192" autocomplete="new-password" spellcheck="false"><p>Keep the field empty to retain the saved token.</p></dd></dl>
+    <dl><dt><label for="fluxer-saved-tunnel">Cloudflare Tunnel token:</label></dt><dd><input id="fluxer-saved-tunnel" name="tunnel_token" type="password" maxlength="8192" autocomplete="new-password" spellcheck="false"><p>Keep the field empty to retain the saved token.</p></dd></dl>
+    <dl><dt></dt><dd><input type="submit" value="Save tokens" data-fluxer-action></dd></dl>
+  </form>
+
+  <table class="unraid"><thead><tr><td>Fluxer status</td></tr></thead></table>
+  <dl><dt></dt><dd>
+    <input id="fluxer-start" type="button" value="Start Fluxer" data-fluxer-action disabled>
+    <input id="fluxer-stop" type="button" value="Stop Fluxer" data-fluxer-action disabled>
+    <input id="fluxer-refresh" type="button" value="Refresh status">
+    <a id="fluxer-open" href="#" target="_blank" rel="noopener noreferrer" hidden>Open Fluxer</a>
+  </dd></dl>
+  <pre id="fluxer-status" aria-live="polite">Read the status to check Fluxer.</pre>
+  <p id="fluxer-polling" hidden>The status refreshes every 5 seconds while an action runs.</p>
+  <dl><dt></dt><dd><input id="fluxer-show-token" type="button" value="Show setup token" disabled></dd></dl>
+  <dl id="fluxer-setup-token-row" hidden><dt><label for="fluxer-setup-token">Setup token:</label></dt><dd><input id="fluxer-setup-token" type="text" readonly autocomplete="off" spellcheck="false"><p>Use this token to create the first administrator account in Fluxer.</p></dd></dl>
+</div>
+
+<style>
+#fluxer-manager [hidden] { display: none !important; }
+#fluxer-manager input[type="text"], #fluxer-manager input[type="email"], #fluxer-manager input[type="password"] { width: min(100%, 34rem); box-sizing: border-box; }
+#fluxer-manager #fluxer-status { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 24rem; overflow-y: auto; }
+#fluxer-manager #fluxer-message { min-height: 1.5em; white-space: pre-wrap; overflow-wrap: anywhere; }
+#fluxer-manager #fluxer-open { margin-left: .75rem; }
+</style>
+
+<script>
+(function () {
+  'use strict';
+  var root = document.getElementById('fluxer-manager');
+  var message = document.getElementById('fluxer-message');
+  var output = document.getElementById('fluxer-status');
+  var configured = false;
+  var ready = false;
+  var busy = false;
+  var pollTimer = null;
+
+  function text(value) { return typeof value === 'string' ? value : ''; }
+  function showMessage(value, error) {
+    message.textContent = value;
+    message.className = error ? 'red-text' : '';
+  }
+  function setBusy(value) {
+    busy = value;
+    root.querySelectorAll('[data-fluxer-action]').forEach(function (button) {
+      button.disabled = value;
+    });
+    document.getElementById('fluxer-start').disabled = value || !configured || !ready;
+    document.getElementById('fluxer-stop').disabled = value || !configured;
+    document.getElementById('fluxer-save').disabled = value || !ready;
+    document.getElementById('fluxer-show-token').disabled = !configured;
+    document.getElementById('fluxer-polling').hidden = !value;
+  }
+  async function request(action, form) {
+    var fields = form ? new URLSearchParams(new FormData(form)) : new URLSearchParams();
+    fields.set('action', action);
+    fields.set('csrf_token', csrf_token);
+    var response = await fetch('/plugins/fluxer/include/control.php', {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: fields.toString()
+    });
+    var data;
+    try { data = await response.json(); }
+    catch (_) { throw new Error('Reload this Unraid page, then try again.'); }
+    if (!response.ok || !data.ok) {
+      var failure = text(data.message) || 'The request failed. Refresh the status before you try again.';
+      if (typeof data.detail === 'string' && data.detail !== '') { failure += '\n' + data.detail; }
+      throw new Error(failure);
+    }
+    return data;
+  }
+  function stopPolling() {
+    if (pollTimer !== null) { clearTimeout(pollTimer); pollTimer = null; }
+  }
+  function schedulePoll() {
+    stopPolling();
+    pollTimer = setTimeout(function () { refreshStatus(true); }, 5000);
+  }
+  async function refreshStatus(polling) {
+    try {
+      var data = await request('status');
+      configured = data.configured === true;
+      var prerequisites = data.prerequisites || {};
+      ready = prerequisites.compose === true && prerequisites.tailscale === true && prerequisites.array_started === true;
+      document.getElementById('fluxer-configure').hidden = configured;
+      document.getElementById('fluxer-tokens').hidden = !configured;
+      document.getElementById('fluxer-tunnel-route').hidden = !configured;
+      document.getElementById('fluxer-prerequisites').hidden = ready;
+      document.getElementById('fluxer-compose-required').hidden = prerequisites.compose === true;
+      document.getElementById('fluxer-tailscale-required').hidden = prerequisites.tailscale === true;
+      document.getElementById('fluxer-array-required').hidden = prerequisites.array_started === true;
+      output.textContent = text(data.status);
+      var open = document.getElementById('fluxer-open');
+      if (typeof data.url === 'string' && /^https:\/\/[a-z0-9.-]+$/.test(data.url)) {
+        open.href = data.url;
+        open.hidden = false;
+        document.getElementById('fluxer-route-domain').textContent = data.url.slice(8);
+        document.getElementById('fluxer-route-origin').textContent = data.url.slice(8);
+      } else { open.hidden = true; }
+      var pending = data.pending === true;
+      setBusy(pending);
+      if (pending) { schedulePoll(); }
+      else { stopPolling(); }
+    } catch (error) {
+      stopPolling();
+      setBusy(false);
+      showMessage(error.message, true);
+    }
+  }
+  async function save(form, action) {
+    setBusy(true);
+    showMessage('Save requested.', false);
+    try {
+      var data = await request(action, form);
+      form.querySelectorAll('input[type="password"]').forEach(function (input) { input.value = ''; });
+      showMessage(text(data.message), false);
+      await refreshStatus(false);
+    } catch (error) {
+      setBusy(false);
+      showMessage(error.message, true);
+      await refreshStatus(false);
+    }
+  }
+  document.getElementById('fluxer-configure').addEventListener('submit', function (event) {
+    event.preventDefault();
+    save(event.currentTarget, 'configure');
+  });
+  document.getElementById('fluxer-tokens').addEventListener('submit', function (event) {
+    event.preventDefault();
+    save(event.currentTarget, 'save_tokens');
+  });
+  async function operate(action) {
+    setBusy(true);
+    showMessage(action === 'start' ? 'Start requested.' : 'Stop requested.', false);
+    try {
+      var data = await request(action);
+      showMessage(text(data.message), false);
+      schedulePoll();
+    } catch (error) {
+      setBusy(false);
+      showMessage(error.message, true);
+    }
+  }
+  document.getElementById('fluxer-start').addEventListener('click', function () { operate('start'); });
+  document.getElementById('fluxer-stop').addEventListener('click', function () { operate('stop'); });
+  document.getElementById('fluxer-refresh').addEventListener('click', function () { refreshStatus(false); });
+  document.getElementById('fluxer-show-token').addEventListener('click', async function () {
+    try {
+      var data = await request('setup_token');
+      document.getElementById('fluxer-setup-token').value = text(data.token);
+      document.getElementById('fluxer-setup-token-row').hidden = false;
+    } catch (error) { showMessage(error.message, true); }
+  });
+  window.addEventListener('pagehide', stopPolling);
+  refreshStatus(false);
+}());
+</script>

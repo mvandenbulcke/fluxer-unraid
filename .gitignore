@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+data/
+secrets/
+backups/
+*.pem
+.DS_Store
+.setup.*/
+dist/
+__pycache__/
+*.pyc

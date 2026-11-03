@@ -1,0 +1,24 @@
+name: Check Unraid package
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Check shell scripts
+        run: bash -n setup.sh set-tokens.sh start.sh unraid-plugin/scripts/fluxerctl unraid-plugin/event/docker_started
+      - name: Check PHP syntax
+        run: php -l unraid-plugin/include/control.php
+      - name: Check the controller
+        run: python3 -m unittest discover -s tests -v
+      - name: Build the plugin
+        run: python3 tools/build-unraid-plugin.py --version 2026.11.03.1 --repository "$GITHUB_REPOSITORY"

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommunityApplications>
+  <Profile>Unofficial Fluxer installer for Unraid 7. Install and manage the official Fluxer containers through a native Settings page. Web access uses Cloudflare Tunnel. Voice and video use a private VPN without WAN port forwards. Report installer issues in the project repository.</Profile>
+  <Icon>https://raw.githubusercontent.com/mvandenbulcke/fluxer-unraid/main/icon.svg</Icon>
+  <WebPage>https://github.com/mvandenbulcke/fluxer-unraid</WebPage>
+  <Forum>https://github.com/mvandenbulcke/fluxer-unraid/issues</Forum>
+</CommunityApplications>

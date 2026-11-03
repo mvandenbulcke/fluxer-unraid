@@ -1,0 +1,100 @@
+services:
+  traefik:
+    image: traefik:v3.7.17
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - --log.level=INFO
+      - --api.dashboard=false
+      - --ping=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=${TRAEFIK_NETWORK:-fluxer-proxy}
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.websecure.http.tls=true
+      - --entrypoints.websecure.http.tls.certresolver=dns-cloudflare
+      - --entrypoints.websecure.forwardedheaders.trustedips=${FLUXER_TUNNEL_SUBNET:-172.30.90.0/24}
+      - --entrypoints.websecure.transport.respondingtimeouts.readtimeout=3600s
+      - --entrypoints.websecure.transport.respondingtimeouts.writetimeout=3600s
+      - --entrypoints.websecure.transport.respondingtimeouts.idletimeout=3600s
+      - --certificatesresolvers.dns-cloudflare.acme.email=${FLUXER_ACME_EMAIL:?Set FLUXER_ACME_EMAIL in .env}
+      - --certificatesresolvers.dns-cloudflare.acme.storage=/acme/acme.json
+      - --certificatesresolvers.dns-cloudflare.acme.dnschallenge.provider=cloudflare
+      - --certificatesresolvers.dns-cloudflare.acme.dnschallenge.resolvers=1.1.1.1:53,1.0.0.1:53
+    environment:
+      CF_DNS_API_TOKEN_FILE: /run/secrets/cloudflare-dns-token
+    secrets:
+      - cloudflare-dns-token
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+      - type: bind
+        source: ${FLUXER_DATA_DIR:?Set FLUXER_DATA_DIR in .env}/traefik-acme
+        target: /acme
+        bind:
+          create_host_path: false
+    networks:
+      - proxy
+      - tunnel
+    labels:
+      traefik.enable: "false"
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.3
+    restart: unless-stopped
+    user: "0:0"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token-file
+      - /run/secrets/cloudflare-tunnel-token
+    secrets:
+      - cloudflare-tunnel-token
+    networks:
+      - tunnel
+    labels:
+      traefik.enable: "false"
+    depends_on:
+      traefik:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  proxy:
+    name: ${TRAEFIK_NETWORK:-fluxer-proxy}
+    external: false
+    driver: bridge
+  tunnel:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${FLUXER_TUNNEL_SUBNET:-172.30.90.0/24}
+
+secrets:
+  cloudflare-dns-token:
+    file: ./secrets/cloudflare-dns-token
+  cloudflare-tunnel-token:
+    file: ./secrets/cloudflare-tunnel-token

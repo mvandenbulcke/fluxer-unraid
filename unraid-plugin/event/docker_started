@@ -1,0 +1,3 @@
+#!/bin/bash
+umask 077
+/usr/local/emhttp/plugins/fluxer/scripts/fluxerctl autostart >> /var/log/fluxer-unraid.log 2>&1 < /dev/null &

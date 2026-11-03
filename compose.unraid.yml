@@ -1,0 +1,72 @@
+services:
+  edge:
+    ports: !reset []
+    networks:
+      - fluxer
+      - proxy
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:-fluxer-proxy}
+      traefik.http.routers.fluxer.rule: Host(`${FLUXER_DOMAIN:?Set FLUXER_DOMAIN in .env}`)
+      traefik.http.routers.fluxer.entrypoints: websecure
+      traefik.http.routers.fluxer.tls: "true"
+      traefik.http.routers.fluxer.tls.certresolver: dns-cloudflare
+      traefik.http.routers.fluxer.service: fluxer
+      traefik.http.services.fluxer.loadbalancer.server.port: "8080"
+      traefik.http.services.fluxer.loadbalancer.server.scheme: http
+      traefik.http.services.fluxer.loadbalancer.passhostheader: "true"
+
+networks:
+  proxy:
+    name: ${TRAEFIK_NETWORK:-fluxer-proxy}
+    external: true
+
+volumes:
+  edge-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${FLUXER_DATA_DIR:?Set FLUXER_DATA_DIR in .env}/edge-data
+  edge-config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${FLUXER_DATA_DIR:?Set FLUXER_DATA_DIR in .env}/edge-config
+  postgres-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${FLUXER_DATA_DIR:?Set FLUXER_DATA_DIR in .env}/postgres-data
+  valkey-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${FLUXER_DATA_DIR:?Set FLUXER_DATA_DIR in .env}/valkey-data
+  nats-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${FLUXER_DATA_DIR:?Set FLUXER_DATA_DIR in .env}/nats-data
+  meilisearch-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${FLUXER_DATA_DIR:?Set FLUXER_DATA_DIR in .env}/meilisearch-data
+  seaweedfs-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${FLUXER_DATA_DIR:?Set FLUXER_DATA_DIR in .env}/seaweedfs-data
+  media-proxy-tmp:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${FLUXER_DATA_DIR:?Set FLUXER_DATA_DIR in .env}/media-proxy-tmp

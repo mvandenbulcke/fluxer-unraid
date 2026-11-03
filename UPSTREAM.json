@@ -1,0 +1,8 @@
+{
+  "release": "2026.1102.205049",
+  "source_commit": "d4bb09cf6d0a36628da1456c6208d81ed911068d",
+  "release_url": "https://github.com/fluxerapp/fluxer/releases/tag/fluxer-release%402026.1102.205049",
+  "bundle_url": "https://github.com/fluxerapp/fluxer/releases/download/fluxer-release%402026.1102.205049/fluxer-compose-2026.1102.205049.tar.gz",
+  "bundle_sha256": "88ce4969f3a5301acd12cf680da44b21ed3bc40fcc032787d1b020d1e961f4cc",
+  "checked_on": "2026-11-03"
+}

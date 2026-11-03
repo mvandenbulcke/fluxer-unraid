@@ -1,0 +1,49 @@
+name: Release Unraid plugin
+
+on:
+  push:
+    tags:
+      - "v20*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the release tag
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check PHP syntax
+        run: php -l unraid-plugin/include/control.php
+
+      - name: Check the controller
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Build the plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/build-unraid-plugin.py \
+            --version "${GITHUB_REF_NAME#v}" \
+            --repository "$GITHUB_REPOSITORY"
+
+      - name: Publish the release files
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/fluxer-unraid-${version}.tar.gz" \
+            dist/fluxer.plg \
+            dist/SHA256SUMS \
+            --verify-tag \
+            --title "Fluxer for Unraid ${version}" \
+            --generate-notes \
+            --latest
