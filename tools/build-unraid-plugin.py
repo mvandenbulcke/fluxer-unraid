@@ -16,7 +16,7 @@ from pathlib import Path, PurePosixPath
 
 
 DEFAULT_REPOSITORY = "https://github.com/mvandenbulcke/fluxer-unraid"
-DEFAULT_VERSION = "2026.11.03.1"
+DEFAULT_VERSION = "2026.11.03.3"
 PLUGIN_PREFIX = PurePosixPath("usr/local/emhttp/plugins/fluxer")
 REQUIRED_BUNDLE_FILES = (
     ".env.example",
@@ -24,7 +24,7 @@ REQUIRED_BUNDLE_FILES = (
     "docker-compose.proxy.yml",
     "compose.unraid.yml",
     "compose.ingress.yml",
-    "compose.voice-vpn.yml",
+    "compose.voice-direct.yml",
     "Caddyfile",
     "setup.sh",
     "set-tokens.sh",

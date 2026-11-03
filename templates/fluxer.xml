@@ -4,7 +4,9 @@
   <PluginURL>https://github.com/mvandenbulcke/fluxer-unraid/releases/latest/download/fluxer.plg</PluginURL>
   <Project>https://github.com/mvandenbulcke/fluxer-unraid</Project>
   <Support>https://github.com/mvandenbulcke/fluxer-unraid/issues</Support>
-  <Overview>Unofficial beta installer for a new Fluxer instance on Unraid 7. The Settings page configures the official Docker Compose stack. Install Compose Manager Plus and the Tailscale plugin first. Web access uses Cloudflare Tunnel and Traefik. Each caller needs VPN access for voice and video. No WAN port forwards are required. Cloudflare DNS and tunnel tokens are required during setup. Removing this plugin keeps existing containers and data.</Overview>
+  <Overview>Unofficial beta installer for a new Fluxer instance on Unraid 7. Install Compose Manager Plus first. The Settings page configures the official Docker Compose stack. Web access uses Cloudflare Tunnel and Traefik.
+
+Calls connect directly through router forwards for TCP 7881 and UDP 7882 to the NAS LAN address. LiveKit detects the public IP address automatically. Callers need no VPN. Setup requires Cloudflare DNS and tunnel tokens. Removing this plugin keeps existing containers and data.</Overview>
   <Category>Tools:Utilities</Category>
   <Icon>https://raw.githubusercontent.com/mvandenbulcke/fluxer-unraid/main/icon.svg</Icon>
   <ReadMe>https://github.com/mvandenbulcke/fluxer-unraid#readme</ReadMe>

@@ -1,0 +1,11 @@
+services:
+  livekit:
+    ports: !override
+      - target: ${FLUXER_LIVEKIT_TCP_PORT:-7881}
+        published: "${FLUXER_LIVEKIT_TCP_PORT:-7881}"
+        host_ip: ${FLUXER_NAS_IP:?Set the NAS LAN address}
+        protocol: tcp
+      - target: ${FLUXER_LIVEKIT_UDP_PORT:-7882}
+        published: "${FLUXER_LIVEKIT_UDP_PORT:-7882}"
+        host_ip: ${FLUXER_NAS_IP:?Set the NAS LAN address}
+        protocol: udp

@@ -110,7 +110,6 @@ function prerequisites(): array
     $var = @parse_ini_file('/var/local/emhttp/var.ini', false, INI_SCANNER_RAW) ?: [];
     return [
         'compose' => $compose,
-        'tailscale' => is_dir('/usr/local/emhttp/plugins/tailscale') && is_executable('/usr/local/sbin/tailscale'),
         'array_started' => ($var['mdState'] ?? '') === 'STARTED',
     ];
 }
@@ -119,9 +118,6 @@ function requireReady(array $ready): void
 {
     if (!$ready['compose']) {
         reply(['ok' => false, 'message' => 'Install Docker Compose before you start Fluxer.'], 409);
-    }
-    if (!$ready['tailscale']) {
-        reply(['ok' => false, 'message' => 'Install the Tailscale plugin before you start Fluxer.'], 409);
     }
     if (!$ready['array_started']) {
         reply(['ok' => false, 'message' => 'Start the Unraid array before you configure Fluxer.'], 409);
@@ -139,6 +135,18 @@ function validDomain(string $value): bool
         }
     }
     return true;
+}
+
+function validNasAddress(string $value): bool
+{
+    if (!filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        return false;
+    }
+    $octets = array_map('intval', explode('.', $value));
+    return $octets[0] === 10
+        || ($octets[0] === 172 && $octets[1] >= 16 && $octets[1] <= 31)
+        || ($octets[0] === 192 && $octets[1] === 168)
+        || ($octets[0] === 100 && $octets[1] >= 64 && $octets[1] <= 127);
 }
 
 function savedValue(string $name): ?string
@@ -251,21 +259,20 @@ if ($action === 'configure') {
     }
     $domain = field('domain');
     $email = field('email');
-    $vpn = field('vpn_ip');
+    $nas = field('nas_ip');
     if (!validDomain($domain)) {
         reply(['ok' => false, 'message' => 'Enter a lowercase domain without a scheme, port, or path.'], 400);
     }
     if (!filter_var($email, FILTER_VALIDATE_EMAIL) || !preg_match('/^[a-zA-Z0-9@._+%\-]+$/D', $email)) {
         reply(['ok' => false, 'message' => 'Enter an email address for certificate notices.'], 400);
     }
-    $octets = explode('.', $vpn);
-    if (!filter_var($vpn, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) || count($octets) !== 4 || $octets[0] !== '100' || (int) $octets[1] < 64 || (int) $octets[1] > 127) {
-        reply(['ok' => false, 'message' => 'Enter the Tailscale IPv4 address of the NAS.'], 400);
+    if (!validNasAddress($nas)) {
+        reply(['ok' => false, 'message' => 'Enter the private IPv4 address of the NAS on your local network.'], 400);
     }
     $dns = token('dns_token', true);
     $tunnel = token('tunnel_token', true);
     requireReady(prerequisites());
-    [$code, $text] = helper(['prepare', $domain, $email, $vpn]);
+    [$code, $text] = helper(['prepare', $domain, $email, $nas]);
     if ($code !== 0) {
         reply(['ok' => false, 'message' => 'The setup command failed.', 'detail' => $text, 'exit_code' => $code], 500);
     }

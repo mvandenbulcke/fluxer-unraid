@@ -36,9 +36,9 @@ case "$*" in
 esac
 """)
         docker.chmod(0o755)
-        tailscale = fakebin / "tailscale"
-        tailscale.write_text("#!/bin/bash\nprintf '%s\\n' \"${FAKE_VPN_IP:-100.101.102.103}\"\n")
-        tailscale.chmod(0o755)
+        ip = fakebin / "ip"
+        ip.write_text("#!/bin/bash\nprintf '2: br0 inet %s/24 brd 192.168.30.255 scope global br0\\n' \"${FAKE_NAS_IP:-192.168.30.10}\"\n")
+        ip.chmod(0o755)
         if shutil.which("flock") is None:
             flock = fakebin / "flock"
             flock.write_text("""#!/usr/bin/env python3
@@ -68,7 +68,7 @@ if args: sys.exit(subprocess.run(args).returncode)
         )
 
     def prepare(self):
-        result = self.call("prepare", "chat.example.com", "admin@example.com", "100.101.102.103")
+        result = self.call("prepare", "chat.example.com", "admin@example.com", "192.168.30.10")
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def tokens(self):
@@ -82,16 +82,30 @@ if args: sys.exit(subprocess.run(args).returncode)
     def test_prepare_preserves_existing_keys(self):
         self.prepare()
         original = (self.project / ".env").read_bytes()
-        self.assertNotEqual(self.call("prepare", "other.example.com", "admin@example.com", "100.101.102.103").returncode, 0)
+        self.assertNotEqual(self.call("prepare", "other.example.com", "admin@example.com", "192.168.30.10").returncode, 0)
         self.assertEqual((self.project / ".env").read_bytes(), original)
         self.assertEqual((self.project / ".env").stat().st_mode & 0o777, 0o600)
 
-    def test_start_rejects_a_different_vpn_address(self):
+    def test_start_rejects_an_address_outside_this_nas(self):
         self.prepare()
         self.tokens()
-        self.env["FAKE_VPN_IP"] = "100.101.102.104"
+        self.env["FAKE_NAS_IP"] = "192.168.30.11"
         self.assertNotEqual(self.call("start").returncode, 0)
         self.assertNotIn("compose up", self.docker_log())
+
+    def test_prepare_rejects_nonprivate_or_invalid_addresses(self):
+        for address in ("203.0.113.10", "127.0.0.1", "169.254.1.2", "0.0.0.0", "255.255.255.255", "192.168.030.10", "192.168.30.256"):
+            with self.subTest(address=address):
+                self.assertNotEqual(self.call("prepare", "chat.example.com", "admin@example.com", address).returncode, 0)
+                self.assertFalse((self.project / ".env").exists())
+
+    def test_prepare_supports_private_network_addresses(self):
+        for index, address in enumerate(("10.20.30.40", "172.16.20.30", "192.168.30.10", "100.64.2.3")):
+            with self.subTest(address=address):
+                self.env["FLUXER_PROJECT_DIR"] = str(self.base / f"network-{index}")
+                result = self.call("prepare", "chat.example.com", "admin@example.com", address)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"FLUXER_NAS_IP='{address}'", (Path(self.env["FLUXER_PROJECT_DIR"]) / ".env").read_text())
 
     def test_start_rejects_old_compose(self):
         self.prepare()

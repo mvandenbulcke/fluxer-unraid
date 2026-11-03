@@ -1,34 +1,34 @@
 # Fluxer on Unraid
 
-The web app uses Cloudflare Tunnel and Traefik. Calls use the private Tailscale network. This design needs no router port forwarding.
+The web app uses Cloudflare Tunnel and Traefik. Calls connect directly through two router port forwards to the NAS. Callers need no VPN.
 
-The website remains public with Fluxer account authentication. Every caller needs Tailscale access to the NAS. Traefik handles the web app. LiveKit handles call media directly through the VPN.
+The website remains public with Fluxer account authentication. LiveKit detects the public IP address automatically. LAN callers use the same instance.
 
 ```text
 Web:   Internet -> Cloudflare Tunnel -> Traefik -> Fluxer
-Calls: Tailscale clients -> NAS Tailscale address -> LiveKit
+Calls: Internet / LAN clients -> router public IP -> NAS LAN address -> LiveKit
 ```
 
-This project includes the official Fluxer Compose bundle for release `2026.1102.205049`. `UPSTREAM.json` records the source and archive checksum. The three local Compose files add Unraid storage, Traefik, Cloudflare Tunnel, and VPN access for calls.
+This project includes the official Fluxer Compose bundle for release `2026.1102.205049`. `UPSTREAM.json` records the source and archive checksum. The three local Compose files add Unraid storage, Traefik, Cloudflare Tunnel, and call access.
 
 ## Requirements
 
 - A Cloudflare-managed domain, such as `example.com`.
 - Unraid with Docker Engine 25 or newer and Docker Compose 2.24.4 or newer.
 - At least 2 CPU cores, 4 GB of memory for Fluxer, and 20 GB of free disk space. Uploads need more space.
-- The Tailscale host plugin on Unraid and Tailscale on each caller's device.
+- A public WAN address and router forwards for TCP 7881 and UDP 7882 to the NAS LAN address.
 
-Fluxer publishes its [host requirements](https://fluxer.com/selfhost) and [Compose guide](https://docs.fluxer.com/operator/docker-compose/). The Compose version requirement comes from its [override syntax](https://docs.docker.com/reference/compose-file/merge/#replace-value).
+Fluxer publishes its [host requirements](https://fluxer.com/selfhost) and [Compose guide](https://docs.fluxer.com/operator/docker-compose/). The Compose version requirement comes from its [override syntax](https://docs.docker.com/reference/compose-file/merge/#replace-value). Install [Compose Manager Plus](https://github.com/mstrhakr/compose_plugin) if the Compose command is absent.
 
 ## Deploy
 
-1. Install **Tailscale (Plugin)** from Unraid Apps. Connect the NAS and each caller's device to your Tailscale network. Read the [Tailscale Unraid guide](https://tailscale.com/docs/integrations/unraid). Find the NAS address with `tailscale ip -4`. Use the host plugin with Docker bridge networks. Start Tailscale before this stack.
+1. Copy this folder to `/mnt/user/appdata/fluxer`. Use a cache pool for appdata if available.
 
-2. Copy this folder to `/mnt/user/appdata/fluxer`. Use a cache pool for appdata if available. Install [Compose Manager Plus](https://github.com/mstrhakr/compose_plugin) if the Compose command is absent. Run this command with your domain, certificate email, and NAS Tailscale address:
+2. Run setup with your domain, certificate email, and NAS LAN address:
 
    ```bash
    cd /mnt/user/appdata/fluxer
-   bash setup.sh chat.example.com admin@example.com 100.101.102.103
+   bash setup.sh chat.example.com admin@example.com 192.168.30.10
    ```
 
    Setup creates `.env`, empty token files, and data folders. It creates the application secrets once. It refuses to replace an existing `.env` file. The default data path is `/mnt/user/appdata/fluxer/data`.
@@ -58,15 +58,26 @@ Fluxer publishes its [host requirements](https://fluxer.com/selfhost) and [Compo
    docker compose ps
    ```
 
-   Wait for the services and certificate. Open your domain. Read `FLUXER_SETUP_TOKEN` from `.env` to create the first admin account. Choose username sign-in if you do not need email. Test a call between two devices on different networks with Tailscale connected.
+   Wait for the services and certificate. Open your domain. Read `FLUXER_SETUP_TOKEN` from `.env` to create the first admin account. Choose username sign-in if you do not need email. Configure the router forwards below before the call test.
 
 ## Call access
 
-`compose.voice-vpn.yml` publishes only TCP 7881 and UDP 7882 on the NAS Tailscale address. It forces LiveKit to announce that address. No service publishes a web port on the NAS. Keep the router's forwarding rules empty for this stack.
+`compose.voice-direct.yml` publishes TCP 7881 and UDP 7882 on the saved NAS LAN address. LiveKit uses STUN, an address discovery protocol, to detect its public IP address. The default is `FLUXER_LIVEKIT_USE_EXTERNAL_IP=true`. Call media bypasses Cloudflare Tunnel. No service publishes a web port on the NAS.
 
-Permit callers to reach the NAS through Tailscale on TCP 7881 and UDP 7882. A subnet route or exit node is unnecessary. Users without that VPN access can open the website, but calls cannot connect.
+Create these router port forwards:
 
-Tailscale can relay traffic when direct connections fail. Relayed calls can have lower throughput. See [Tailscale firewall guidance](https://tailscale.com/docs/reference/faq/firewall-ports). The call configuration uses Fluxer's [LiveKit address settings](https://docs.fluxer.com/operator/environment/#fluxer_livekit_node_ip).
+| WAN port | Protocol | Forward address | Forward port |
+| --- | --- | --- | --- |
+| 7881 | TCP | `192.168.30.10` | 7881 |
+| 7882 | UDP | `192.168.30.10` | 7882 |
+
+Use your actual NAS LAN address. Keep each external and internal port the same. UniFi documents [port forwarding](https://help.ui.com/hc/en-us/articles/235723207-UniFi-Gateway-Port-Forwarding). Test a call from a separate internet connection after the forwards are active.
+
+LAN callers use the gateway's public address through hairpin NAT. UniFi enables [hairpin NAT](https://help.ui.com/hc/en-us/articles/30202160464023-Hairpin-NAT-in-UniFi) by default. If only LAN calls fail, check that behavior on your router.
+
+If the gateway lacks a public WAN address, resolve double NAT or carrier-grade NAT before the call test. An upstream router may also need the same forwards. Carrier-grade NAT may require a public address from your ISP. See [UniFi public access guidance](https://help.ui.com/hc/en-us/articles/30076583334935-Setting-Up-Public-Access-to-Local-Resources-in-UniFi).
+
+LiveKit documents its [call ports](https://docs.livekit.io/transport/self-hosting/ports-firewall/).
 
 ## Cloudflare settings
 
@@ -78,12 +89,12 @@ Cloudflare limits uploads before they reach Fluxer. Free and Pro plans currently
 
 All eight Docker volumes use bind mounts under `FLUXER_DATA_DIR`. Traefik stores its certificates in that folder too. Keep `.env` and `secrets/` with your backups. Keep the database and application keys unchanged after first use.
 
-Before an update, stop the stack with `docker compose stop`. Back up the complete project and data folders. Copy the new official release bundle into the project. Keep the local Compose files and secrets. Compare the new LiveKit configuration with `compose.voice-vpn.yml`. Start the stack with `bash start.sh`.
+Before an update, stop the stack with `docker compose stop`. Back up the complete project and data folders. Copy the new official release bundle into the project. Keep the local Compose files and secrets. Compare the new LiveKit configuration with `compose.voice-direct.yml`. Start the stack with `bash start.sh`.
 
-`FLUXER_TUNNEL_SUBNET` defaults to `172.30.90.0/24`. Change it before first start if that range overlaps another network. If the Tailscale address changes, update `FLUXER_VPN_IP` and recreate the containers.
+`FLUXER_TUNNEL_SUBNET` defaults to `172.30.90.0/24`. Change it before first start if that range overlaps another network. If the NAS address changes, update `FLUXER_NAS_IP`, the router forwards, and the containers.
 
-## Local checks
+## Checks
 
-The archive checksum matches the official release. Script syntax, secret creation, key formats, and protection against a second setup passed. The merged Compose configuration binds both call ports only to the VPN address.
+Local checks cover the upstream archive checksum, script syntax, secret creation, key formats, and protection against a second setup. The merged Compose configuration binds both call ports to the saved NAS address.
 
-The local Docker engine is unavailable. Container startup, certificate creation, Unraid storage behavior, and live calls still need checks on the NAS.
+Beta `2026.11.03.2` installed on Unraid 7.3.4. The Settings page and status checks passed. Full chat and call tests remain. Community Applications submission remains on hold.

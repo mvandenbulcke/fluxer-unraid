@@ -5,12 +5,12 @@ umask 077
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 
 if [[ $# != 3 ]]; then
-  fail 'Usage: bash setup.sh chat.example.com admin@example.com 100.101.102.103'
+  fail 'Usage: bash setup.sh chat.example.com admin@example.com 192.168.30.10'
 fi
 
 domain=$1
 email=$2
-vpn_ip=$3
+nas_ip=$3
 [[ ${#domain} -le 253 && "$domain" == *.* && "$domain" != *[!a-z0-9.-]* ]] || fail 'Enter a lowercase domain without a scheme, port, or path.'
 IFS=. read -r -a domain_labels <<< "$domain"
 for label in "${domain_labels[@]}"; do
@@ -18,11 +18,14 @@ for label in "${domain_labels[@]}"; do
 done
 [[ "$domain" != *. && "$domain" != *..* ]] || fail 'The domain contains an empty label.'
 [[ "$email" == ?*@?*.?* && "$email" != *[!a-zA-Z0-9@._+%-]* ]] || fail 'Enter an email address for certificate notices.'
-[[ "$vpn_ip" =~ ^100\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]] || fail 'Enter the Tailscale IPv4 address of the NAS.'
-octet2=$((10#${BASH_REMATCH[1]}))
-octet3=$((10#${BASH_REMATCH[2]}))
-octet4=$((10#${BASH_REMATCH[3]}))
-(( octet2 >= 64 && octet2 <= 127 && octet3 <= 255 && octet4 <= 255 )) || fail 'The Tailscale address must be in 100.64.0.0/10.'
+[[ "$nas_ip" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]] || fail 'Enter the private LAN IPv4 address of the NAS.'
+octet1=$((10#${BASH_REMATCH[1]}))
+octet2=$((10#${BASH_REMATCH[2]}))
+octet3=$((10#${BASH_REMATCH[3]}))
+octet4=$((10#${BASH_REMATCH[4]}))
+(( octet1 <= 255 && octet2 <= 255 && octet3 <= 255 && octet4 <= 255 )) || fail 'The NAS address contains an invalid IPv4 octet.'
+[[ "$nas_ip" == "$octet1.$octet2.$octet3.$octet4" ]] || fail 'Enter the NAS address without leading zeros.'
+(( octet1 == 10 || (octet1 == 172 && octet2 >= 16 && octet2 <= 31) || (octet1 == 192 && octet2 == 168) || (octet1 == 100 && octet2 >= 64 && octet2 <= 127) )) || fail 'Use the private LAN address of the NAS.'
 
 command -v openssl >/dev/null || fail 'Install OpenSSL before setup.'
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
@@ -62,12 +65,11 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 done < .env.example > "$work_dir/env"
 
 cat >> "$work_dir/env" <<EOF
-COMPOSE_FILE=docker-compose.yml:docker-compose.proxy.yml:compose.unraid.yml:compose.ingress.yml:compose.voice-vpn.yml
+COMPOSE_FILE=docker-compose.yml:docker-compose.proxy.yml:compose.unraid.yml:compose.ingress.yml:compose.voice-direct.yml
 FLUXER_DATA_DIR='$data_dir'
 FLUXER_ACME_EMAIL='$email'
-FLUXER_VPN_IP='$vpn_ip'
-FLUXER_LIVEKIT_NODE_IP='$vpn_ip'
-FLUXER_LIVEKIT_USE_EXTERNAL_IP=false
+FLUXER_NAS_IP='$nas_ip'
+FLUXER_LIVEKIT_USE_EXTERNAL_IP=true
 FLUXER_LIVEKIT_TURN_SERVERS='[]'
 TRAEFIK_NETWORK=fluxer-proxy
 FLUXER_TUNNEL_SUBNET=172.30.90.0/24
