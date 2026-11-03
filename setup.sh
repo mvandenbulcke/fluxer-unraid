@@ -39,8 +39,10 @@ done
 work_dir=$(mktemp -d "$script_dir/.setup.XXXXXXXX")
 trap 'rm -rf -- "$work_dir"' EXIT
 openssl ecparam -name prime256v1 -genkey -noout -out "$work_dir/vapid.pem"
-vapid_public=$(openssl ec -in "$work_dir/vapid.pem" -pubout -outform DER 2>/dev/null | tail -c 65 | openssl base64 -A | tr '/+' '_-' | tr -d '=')
-vapid_private=$(openssl ec -in "$work_dir/vapid.pem" -outform DER 2>/dev/null | tail -c +8 | head -c 32 | openssl base64 -A | tr '/+' '_-' | tr -d '=')
+openssl ec -in "$work_dir/vapid.pem" -pubout -outform DER -out "$work_dir/vapid-public.der" 2>/dev/null
+openssl ec -in "$work_dir/vapid.pem" -outform DER -out "$work_dir/vapid-private.der" 2>/dev/null
+vapid_public=$(tail -c 65 "$work_dir/vapid-public.der" | openssl base64 -A | tr '/+' '_-' | tr -d '=')
+vapid_private=$(dd if="$work_dir/vapid-private.der" bs=1 skip=7 count=32 2>/dev/null | openssl base64 -A | tr '/+' '_-' | tr -d '=')
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -outform DER -out "$work_dir/activitypub.der" 2>/dev/null
 
 while IFS= read -r line || [[ -n "$line" ]]; do
