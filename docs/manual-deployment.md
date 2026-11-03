@@ -89,7 +89,14 @@ Cloudflare limits uploads before they reach Fluxer. Free and Pro plans currently
 
 Cloudflare Tunnel needs outbound TCP and UDP port 7844 to its [published tunnel addresses](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/). If an outbound VPN blocks this traffic, add a WAN exception for only those addresses and port 7844. Keep the VPN route for other NAS traffic.
 
-LiveKit uses STUN to detect the public address. An outbound VPN can make it announce the VPN exit address instead of the gateway's WAN address. Before the call test, check the announced address and the return route for call media. A destination-port exception for 7882 does not cover replies to clients on random ports. Keep other NAS applications on their existing VPN route.
+LiveKit uses STUN to detect the public address. An outbound VPN can make it announce the VPN exit address instead of the gateway's WAN address. If STUN finds the VPN exit, set these values in `.env`:
+
+```dotenv
+FLUXER_LIVEKIT_NODE_IP=<WANIPv4>
+FLUXER_LIVEKIT_USE_EXTERNAL_IP=false
+```
+
+Replace `<WANIPv4>` with the gateway's public IPv4 address. Apply the change with `docker compose up -d --no-deps livekit`. Update this address when the gateway's WAN address changes. Test the return route for call media from a separate internet connection. A destination-port exception for 7882 does not cover replies to clients on random ports. Keep other NAS applications on their existing VPN route.
 
 Some VPNs block direct queries to authoritative DNS servers. The ingress file uses these Traefik options:
 
@@ -99,6 +106,15 @@ Some VPNs block direct queries to authoritative DNS servers. The ingress file us
 ```
 
 Traefik checks the challenge TXT record through all configured recursive resolvers instead. The certificate authority still validates the challenge. HTTPS certificate verification remains enabled. See [Traefik's DNS challenge options](https://doc.traefik.io/traefik/reference/install-configuration/tls/certificate-resolvers/acme/).
+
+During testing, cached DNS misses behind an outbound VPN lasted longer than the default 120-second wait. The ingress file sets these environment variables for Traefik:
+
+```dotenv
+CLOUDFLARE_PROPAGATION_TIMEOUT=3600
+CLOUDFLARE_POLLING_INTERVAL=10
+```
+
+This allows up to 3600 seconds for propagation, with a check every 10 seconds. Recursive TXT checks and certificate authority validation remain enabled. See [Lego's Cloudflare configuration](https://go-acme.github.io/lego/dns/cloudflare/#additional-configuration). Future certificate renewal through the VPN alone remains untested.
 
 ## Storage and updates
 
@@ -114,4 +130,13 @@ Before an update, stop the stack with `docker compose stop`. Back up the complet
 
 Local checks cover the upstream archive checksum, script syntax, secret creation, key formats, and protection against a second setup. The merged Compose configuration binds both call ports to the saved NAS address.
 
-Beta `2026.11.03.4` installed on Unraid 7.3.4. The Settings page and 21 container health checks passed. Full web, chat, and call tests remain. Community Applications submission remains on hold.
+Beta `2026.11.03.5` installed on Unraid 7.3.4. The Settings page and 21 container health checks passed. The public HTTPS setup wizard loads. These public checks passed:
+
+| Check | Observed result |
+| --- | --- |
+| `/.well-known/fluxer` | HTTP 200 |
+| `/api/_health` | HTTP 200 |
+| `/_ready` | HTTP 200 |
+| `/gateway` WebSocket | HTTP 101, then opcode 10 Hello with a 41250 ms heartbeat interval |
+
+Authenticated chat, voice, and video tests remain. Future certificate renewal through the VPN alone remains untested. Community Applications submission remains on hold.

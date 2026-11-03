@@ -45,6 +45,6 @@ Direct calls require a public WAN address and the two router port forwards. If t
 
 The bundled Fluxer release is `2026.1102.205049`. `UPSTREAM.json` records its source and checksum. Local checks cover secret creation, key preservation, call port bindings, and controller behavior. GitHub Actions checks PHP syntax and builds the release package.
 
-Beta `2026.11.03.4` installed on Unraid 7.3.4. The Settings page and 21 container health checks passed. Full web, chat, and call tests remain.
+Beta `2026.11.03.5` installed on Unraid 7.3.4. The Settings page and 21 container health checks passed. The public HTTPS setup wizard loads. Instance discovery, API health, app readiness, and the Gateway WebSocket handshake passed. Authenticated chat, voice, and video tests remain.
 
 Source code uses the [AGPL-3.0-or-later license](LICENSE). This project does not represent Fluxer or Lime Technology. Report package problems through [GitHub Issues](https://github.com/mvandenbulcke/fluxer-unraid/issues).
