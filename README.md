@@ -35,16 +35,16 @@ Keep browser challenges and external authentication screens off for this hostnam
 
 The plugin resumes a stack after Docker starts if you previously selected **Start Fluxer**. **Stop Fluxer** disables that behavior and keeps the data. Plugin removal keeps the containers and appdata. Stop Fluxer before you remove its management plugin.
 
-Back up the complete appdata folder before updates. A plugin update replaces the management code. It does not replace an existing deployment bundle or change the database. Use the [manual deployment guide](docs/manual-deployment.md) for Fluxer release updates.
+Back up the complete appdata folder before updates. A plugin update replaces the management code. **Start Fluxer** also upgrades `compose.ingress.yml` if it matches a known managed version. It preserves custom ingress files and stops for a manual merge. Application keys and data remain unchanged. Use the [manual deployment guide](docs/manual-deployment.md) for Fluxer release updates.
 
 ## Requirements and checks
 
 Use Unraid 7, Docker Engine 25 or newer, and Docker Compose 2.24.4 or newer. Fluxer requires at least 2 CPU cores, 4 GB of memory, and 20 GB of disk space. Uploads need more space. See [Fluxer's requirements](https://fluxer.com/selfhost).
 
-Direct calls require a public WAN address and the two router port forwards. If the gateway lacks a public WAN address, resolve the upstream NAT before the call test.
+Direct calls require a public WAN address and the two router port forwards. If the gateway lacks a public WAN address, resolve the upstream NAT before the call test. A NAS that uses an outbound VPN needs additional routing checks. See [VPN routing and certificates](docs/manual-deployment.md#vpn-routing-and-certificates).
 
 The bundled Fluxer release is `2026.1102.205049`. `UPSTREAM.json` records its source and checksum. Local checks cover secret creation, key preservation, call port bindings, and controller behavior. GitHub Actions checks PHP syntax and builds the release package.
 
-Beta `2026.11.03.2` installed on Unraid 7.3.4. The Settings page and status checks passed. Full chat and call tests remain.
+Beta `2026.11.03.4` installed on Unraid 7.3.4. The Settings page and 21 container health checks passed. Full web, chat, and call tests remain.
 
 Source code uses the [AGPL-3.0-or-later license](LICENSE). This project does not represent Fluxer or Lime Technology. Report package problems through [GitHub Issues](https://github.com/mvandenbulcke/fluxer-unraid/issues).

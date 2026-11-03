@@ -85,9 +85,26 @@ Enable WebSockets. Disable Rocket Loader and HTML caching for this hostname. Exc
 
 Cloudflare limits uploads before they reach Fluxer. Free and Pro plans currently limit each upload to 100 MB. See [Cloudflare upload limits](https://developers.cloudflare.com/support/troubleshooting/http-status-codes/4xx-client-error/error-413/).
 
+## VPN routing and certificates
+
+Cloudflare Tunnel needs outbound TCP and UDP port 7844 to its [published tunnel addresses](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/). If an outbound VPN blocks this traffic, add a WAN exception for only those addresses and port 7844. Keep the VPN route for other NAS traffic.
+
+LiveKit uses STUN to detect the public address. An outbound VPN can make it announce the VPN exit address instead of the gateway's WAN address. Before the call test, check the announced address and the return route for call media. A destination-port exception for 7882 does not cover replies to clients on random ports. Keep other NAS applications on their existing VPN route.
+
+Some VPNs block direct queries to authoritative DNS servers. The ingress file uses these Traefik options:
+
+```text
+--certificatesresolvers.dns-cloudflare.acme.dnschallenge.propagation.disableanschecks=true
+--certificatesresolvers.dns-cloudflare.acme.dnschallenge.propagation.requireallrns=true
+```
+
+Traefik checks the challenge TXT record through all configured recursive resolvers instead. The certificate authority still validates the challenge. HTTPS certificate verification remains enabled. See [Traefik's DNS challenge options](https://doc.traefik.io/traefik/reference/install-configuration/tls/certificate-resolvers/acme/).
+
 ## Storage and updates
 
 All eight Docker volumes use bind mounts under `FLUXER_DATA_DIR`. Traefik stores its certificates in that folder too. Keep `.env` and `secrets/` with your backups. Keep the database and application keys unchanged after first use.
+
+The native plugin upgrades a known managed `compose.ingress.yml` during **Start Fluxer**. It preserves custom ingress files and stops for a manual merge. This upgrade does not change the database, application keys, or tokens.
 
 Before an update, stop the stack with `docker compose stop`. Back up the complete project and data folders. Copy the new official release bundle into the project. Keep the local Compose files and secrets. Compare the new LiveKit configuration with `compose.voice-direct.yml`. Start the stack with `bash start.sh`.
 
@@ -97,4 +114,4 @@ Before an update, stop the stack with `docker compose stop`. Back up the complet
 
 Local checks cover the upstream archive checksum, script syntax, secret creation, key formats, and protection against a second setup. The merged Compose configuration binds both call ports to the saved NAS address.
 
-Beta `2026.11.03.2` installed on Unraid 7.3.4. The Settings page and status checks passed. Full chat and call tests remain. Community Applications submission remains on hold.
+Beta `2026.11.03.4` installed on Unraid 7.3.4. The Settings page and 21 container health checks passed. Full web, chat, and call tests remain. Community Applications submission remains on hold.

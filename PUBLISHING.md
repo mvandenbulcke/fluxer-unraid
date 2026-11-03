@@ -2,9 +2,9 @@
 
 The public source repository is `mvandenbulcke/fluxer-unraid`. The Community Applications entry is an unofficial beta plugin for Unraid 7.
 
-Community Applications submission remains on hold. No submission exists. Beta `2026.11.03.2` installed on Unraid 7.3.4, and the Settings page and status checks passed. Full chat and call tests remain.
+Community Applications submission remains on hold. No submission exists. Beta `2026.11.03.4` installed on Unraid 7.3.4. The Settings page and 21 container health checks passed. Full web, chat, and call tests remain.
 
-The next beta uses direct internet access for calls. The router forwards TCP 7881 and UDP 7882 to the NAS LAN address. LiveKit detects the public IP address automatically. Cloudflare Tunnel still serves the public web app.
+This beta uses direct internet access for calls. The router forwards TCP 7881 and UDP 7882 to the NAS LAN address. LiveKit detects the public IP address automatically. Cloudflare Tunnel still serves the public web app.
 
 ## Release
 
@@ -13,10 +13,10 @@ The next beta uses direct internet access for calls. The router forwards TCP 788
    ```bash
    python3 -m unittest discover -s tests -v
    php -l unraid-plugin/include/control.php
-   python3 tools/build-unraid-plugin.py --version 2026.11.03.3
+   python3 tools/build-unraid-plugin.py --version 2026.11.03.4
    ```
 
-2. Push a version tag, such as `v2026.11.03.3`. The release workflow builds the archive, plugin manifest, and checksums.
+2. Push a version tag, such as `v2026.11.03.4`. The release workflow builds the archive, plugin manifest, and checksums.
 3. Download the release files. Check the archive checksum against the manifest before installation.
 
 The manifest downloads a versioned archive. The stable plugin URL points to the latest release manifest. GitHub excludes prereleases from that URL, so releases use the regular release channel. The Community Apps template retains the beta label.
