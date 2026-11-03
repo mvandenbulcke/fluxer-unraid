@@ -139,4 +139,4 @@ Beta `2026.11.03.5` installed on Unraid 7.3.4. The Settings page and 21 containe
 | `/_ready` | HTTP 200 |
 | `/gateway` WebSocket | HTTP 101, then opcode 10 Hello with a 41250 ms heartbeat interval |
 
-Authenticated chat, voice, and video tests remain. Future certificate renewal through the VPN alone remains untested. Community Applications submission remains on hold.
+The operator reported successful voice and video calls. Text chat remains unconfirmed after a possible desktop delay. These reports are separate from the public checks above. Future certificate renewal through the VPN alone remains untested. Community Applications submission is in progress. The beta has no approved Apps listing yet.

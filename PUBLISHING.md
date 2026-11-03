@@ -2,13 +2,13 @@
 
 The public source repository is [mvandenbulcke/fluxer-unraid](https://github.com/mvandenbulcke/fluxer-unraid). This unofficial beta plugin supports Unraid 7 only.
 
-Community Applications submission remains on hold. No submission exists. GitHub releases distribute the beta through **Plugins > Install Plugin**. A GitHub release does not create an Unraid Apps entry.
+Community Applications submission is in progress. The repository has no approved Apps listing yet. GitHub releases distribute the beta through **Plugins > Install Plugin**. A GitHub release does not create an Unraid Apps entry.
 
-Beta `2026.11.03.5` installed on Unraid 7.3.4. The Settings page and 21 container health checks passed. The public HTTPS setup wizard loads. Instance discovery, API health, app readiness, and the Gateway WebSocket handshake passed. Authenticated chat, voice, and video tests remain. Certificate renewal through the VPN alone also remains untested.
+Beta `2026.11.03.5` installed on Unraid 7.3.4. The Settings page and 21 container health checks passed. The public HTTPS setup wizard loads. Instance discovery, API health, app readiness, and the Gateway WebSocket handshake passed. The operator reported successful voice and video calls. Text chat remains unconfirmed after a possible desktop delay. Certificate renewal through the VPN alone remains untested.
 
 ## Candidate preparation
 
-Version `2026.11.03.6` is the next candidate. [CHANGELOG.md](CHANGELOG.md) records its package, catalog, and check changes. Beta `2026.11.03.5` remains the latest public release. Candidate preparation does not create a tag, public release, NAS update, or Community Applications submission. No NAS runtime test exists for version `2026.11.03.6`.
+Version `2026.11.03.6` adds documentation, package checks, and catalog metadata. [CHANGELOG.md](CHANGELOG.md) records those changes. It keeps the runtime behavior from beta `2026.11.03.5`. Release builds and Apps submission use the steps below. The GitHub release page records the current public version.
 
 ## Beta release
 
@@ -40,18 +40,20 @@ GitHub excludes prereleases from this URL. Beta releases therefore use the regul
 - [ ] The update preserves application keys, tokens, and data. Custom ingress files remain unchanged, and the controller requests a manual merge.
 - [ ] Test notes record public HTTPS checks, authenticated chat, voice, video, and certificate renewal results, including any incomplete checks.
 
-Keep the beta label while required chat, call, and renewal tests remain incomplete. Keep the Community Applications hold in place.
+Keep the beta label while tests remain incomplete. Record operator reports separately from checks that a maintainer completes.
 
-## Future Community Applications review
+## Community Applications submission
 
-The following work prepares a later review. Do not submit while the hold remains.
+The owner authorized submission of this beta. Complete the package checks before the portal scan.
 
 - Check `ca_profile.xml` and `templates/fluxer.xml` against the [repository XML rules](https://ca.unraid.net/submit/help/repository-xml).
 - Keep `<PluginURL>` pointed at the public manifest. Include working support and project links.
 - Keep the overview clear about Unraid 7, the Compose dependency, public web access, call ports, and the beta status.
-- Review the submission terms and the remaining test results before a future submission.
+- Review the submission terms and the recorded test limits before submission.
+- Run **Validate**, then **Scan**, in the [submission portal](https://ca.unraid.net/submit).
+- Review the listing preview before the final submission.
 
-The submission portal requires manual review for plugins. Validation and scanning belong to that later submission flow. Repository preparation does not submit an entry or create a support thread.
+The submission portal requires manual review for plugins. A successful submission does not mean approval. Record the submission result and status after the portal confirms it. GitHub Issues supplies the support link. No separate forum thread is required by the current field rules.
 
 ## Support and maintenance
 

@@ -1,12 +1,13 @@
 # Changelog
 
-Each version has an exact heading for the package builder. Candidate notes describe planned changes, without claiming a public release or completed runtime tests.
+Each version has an exact heading for the package builder. Release notes separate package changes from runtime test results.
 
 ## 2026.11.03.6
 
-Candidate for public beta preparation. This version has no public release, NAS update, or NAS runtime test. Community Applications submission remains on hold.
+Public beta package for Community Applications review. Runtime behavior remains the same as beta `2026.11.03.5`.
 
-- Include the manual deployment and maintainer guides with this changelog in the package.
+- Add a GitHub documentation index, installation guide, and troubleshooting guide.
+- Include the user and maintainer guides with this changelog in the package.
 - Use the exact version section for the Unraid plugin release notes.
 - Add the required author field to the Community Applications catalog entry.
 - Add package artifact tests and include them in the required GitHub checks.
@@ -18,7 +19,7 @@ Candidate for public beta preparation. This version has no public release, NAS u
 - Keep recursive TXT checks and certificate authority validation enabled.
 - Upgrade only known managed ingress files from beta 3 or beta 4. Preserve custom files, application keys, and data.
 
-The public HTTPS setup wizard, instance discovery, API health, app readiness, and Gateway WebSocket handshake passed on Unraid 7.3.4. Authenticated chat, voice, video, and certificate renewal through the VPN alone remain untested.
+The public HTTPS setup wizard, instance discovery, API health, app readiness, and Gateway WebSocket handshake passed on Unraid 7.3.4. The operator later reported successful voice and video calls. Text chat remains unconfirmed after a possible desktop delay. Certificate renewal through the VPN alone remains untested.
 
 ## 2026.11.03.4
 
@@ -30,10 +31,10 @@ The public HTTPS setup wizard, instance discovery, API health, app readiness, an
 
 - Add direct voice forwarding for TCP 7881 and UDP 7882 on the NAS LAN address.
 - Accept longer Cloudflare account and user tokens.
-- Fix an occasional failure during VAPID key creation.
 
 ## 2026.11.03.2
 
+- Fix an occasional failure during VAPID key creation.
 - Install the native Unraid 7 management plugin for local beta tests.
 - Add setup, token storage, start, stop, status, and Docker restart support.
 

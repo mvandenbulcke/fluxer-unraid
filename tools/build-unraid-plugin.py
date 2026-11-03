@@ -33,7 +33,10 @@ REQUIRED_BUNDLE_FILES = (
     "CHANGELOG.md",
     "CONTRIBUTING.md",
     "PUBLISHING.md",
+    "docs/README.md",
+    "docs/installation.md",
     "docs/manual-deployment.md",
+    "docs/troubleshooting.md",
     "LICENSE",
     "UPSTREAM.json",
 )

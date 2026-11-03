@@ -38,7 +38,10 @@ FIXTURE_FILES = {
         b"- Check outbound tunnel access before the public test.\n\n"
         b"## 2026.11.03.8\n\n- Previous release marker.\n"
     ),
+    "docs/README.md": b"# Documentation\n\nRead the installation guide.\n",
+    "docs/installation.md": b"# Installation\n\nInstall the plugin from Apps.\n",
     "docs/manual-deployment.md": b"# Manual deployment\n\nUse the saved instance settings.\n",
+    "docs/troubleshooting.md": b"# Troubleshooting\n\nRead the container logs.\n",
     "LICENSE": b"AGPL-3.0-only\n",
     "UPSTREAM.json": b'{"release":"fixture"}\n',
     "voice/voice.compose.yml": b"services: {}\n",
