@@ -55,6 +55,30 @@ check_project_ownership() {
     [[ -z "$owner" || "$owner" == "$expected" || "$owner" == "$project_dir" ]] || fail 'Another Fluxer Compose project exists. Keep its data and settings. Use its original project folder.'
   done <<< "$owners"
 }
+check_managed_ingress() {
+  local bundled current digest
+  bundled="$plugin_dir/bundle/compose.ingress.yml"
+  current="$project_dir/compose.ingress.yml"
+  [[ -f "$bundled" && ! -L "$bundled" ]] || fail 'The ingress bundle is missing or uses a symbolic link. Reinstall the Fluxer plugin.'
+  [[ -f "$current" && ! -L "$current" ]] || fail 'The ingress file is missing or uses a symbolic link. Restore compose.ingress.yml before you start Fluxer.'
+  cmp -s -- "$bundled" "$current" && return 0
+  digest=$(sha256sum -- "$current") || fail 'Cannot check the ingress file.'
+  digest=${digest%% *}
+  [[ "$digest" == c6e52a07f1512dc2aa023635a78e08bbb6723c9332d50eb22e76c570ff46dd0e ]] || fail 'The ingress file has local changes. Merge the bundled compose.ingress.yml before you start Fluxer.'
+}
+update_managed_ingress() {
+  local bundled current temporary
+  check_managed_ingress
+  bundled="$plugin_dir/bundle/compose.ingress.yml"
+  current="$project_dir/compose.ingress.yml"
+  cmp -s -- "$bundled" "$current" && return 0
+  temporary=$(mktemp "$project_dir/.compose.ingress.yml.XXXXXX") || fail 'Cannot create the temporary ingress file.'
+  if ! cat -- "$bundled" > "$temporary" || ! mv -f -- "$temporary" "$current"; then
+    rm -f -- "$temporary"
+    fail 'Cannot update the managed ingress file.'
+  fi
+  printf '%s\n' 'Updated the managed ingress file. Application keys and data remain unchanged.'
+}
 
 case "$action" in
   status)
@@ -88,6 +112,7 @@ case "$action" in
     [[ -f "$project_dir/.env" ]] || fail 'Configure Fluxer before you start it.'
     check_runtime
     check_project_ownership
+    check_managed_ingress
     for token in cloudflare-dns-token cloudflare-tunnel-token; do
       [[ -s "$project_dir/secrets/$token" ]] || fail 'Save both Cloudflare tokens before you start Fluxer.'
     done
@@ -121,6 +146,7 @@ case "$action" in
     [[ -f "$project_dir/.env" ]] || fail 'Configure Fluxer before you start it.'
     check_runtime
     check_project_ownership
+    update_managed_ingress
     cd "$project_dir"
     bash start.sh
     if [[ -f .cloudflare-tokens-changed ]]; then

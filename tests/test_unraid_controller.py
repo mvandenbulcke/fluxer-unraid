@@ -1,3 +1,5 @@
+import base64
+import gzip
 import os
 from pathlib import Path
 import shutil
@@ -8,6 +10,23 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTROLLER = ROOT / "unraid-plugin/scripts/fluxerctl"
+LEGACY_INGRESS = gzip.decompress(base64.b64decode(
+    b"H4sIAAAAAAAC/7VWbW/jNgz+3l9hBPt4VpKmd8UMBEPWJkDQNB3aFBswDIZiMYkWWRIkOS833H8fZTu207SXorsh"
+    b"gGNRFEmRDx/agtnwBGx0EQTOUFjwtX8NAp7SJUSVbNMj16R7nW8ZsI4aFwWZFGBtaJ3SGli+ZyHJDHf7WGlXGAqC"
+    b"MJAqlLANteEbLmCJ7pzJIN9OVJpSyWrdMBRqSQRsQPTH09FDY4NqThi1q7mihvUXVFho7Goul/3KbikzasMZGEuY"
+    b"StZgzu0T2Gllgc33DBY0E+7Uy8sTEtxWmXX/p39mj4PhaHwXT4ez3x8e76JwIbIdGH9kt//WsAHSmb1WXDpLtjDP"
+    b"cwaEMoaZtf3o6qp3VnnlnCZO2JcX+r42ScA4dKLEBnPBpA0ToTK2ENScN7JQZot5B7YCmicAXVsHjGuLlx9Nnv8Y"
+    b"Psaz5+l0OImfnn/FLERh9/qS9Drk5w7ptC+vzucA4SatVsYRjFIrybCmjqegMlQz6Ldc9HtfOh3738xtEafwA+1x"
+    b"Jt405/POFzyhDuwh/4igowIQmqRAIKVc1Pkc3NwP4+H9YDyJfnkCF5yIAy4DAnLz7UPesHUN9nm/7Vf5g/xtlfyQ"
+    b"LZQlKyoEyCWQQ5v0XwXYB41Wqv0uyX/R596nLkFw5a+5A0wFN0qmWMADp9yM4tvpUzz4bRzPHu6G03g0ngyjoG0y"
+    b"2cbCGnC2XfsNfRhOrUEeCM0r1Pz0puZGiSyFhqbba2TQOZesFKE1lZkEhe0NNbn/kkQs/lVKSK5LcGeUfDPESoq9"
+    b"5+gGBXzHaQWq28FsEN+OH48gdRBWgGqX3B/6QpwGdyT1/qJqhayO4TmIV8q6WFO3ioKaR0vCbCQqJ8j6BpmUIPKl"
+    b"oHMQlWIZDwZH5wLv08pttvJd5CThVskKknWljmMqCv5s3dzftj4FrfK0f20o+2UxOlp/leew53EoUhEF3aqHy76O"
+    b"gs8HCYLCcKx2cODqfCbGGgxXrD6Ks2yJxg8xMZyAYKLAN1m4wFlYynFaciVtncKU7kLLv4K3lB5J/Sm8e691geIa"
+    b"jOxobNfydlPlsnP5hXQ7pHd2jmfWh9nqRJ0ivwnVMTNK10UbTCY/aOI3Cl7QAx6mmVOZZgiiSo6d0NDJ+66ZwvDN"
+    b"hi7sv7OnT5RP4fohgDLQIJnFln2hXdc88QPF4yDCCPPPsrhA6v7/h1Lzlnk7FuclTXPieMenDeywbaRvm7rVDzHO"
+    b"DWdLLypSF72+iejVND0EjtlY8GV9jTCw2Vx66nnvx8ZFo86vsXZhu0gCOTcJ3oDIWRtHePoXRAlxVW4LAAA="
+))
 
 
 class UnraidControllerTests(unittest.TestCase):
@@ -19,7 +38,7 @@ class UnraidControllerTests(unittest.TestCase):
         self.project = self.base / "appdata/fluxer"
         bundle = self.plugin / "bundle"
         bundle.mkdir(parents=True)
-        for name in ("setup.sh", "start.sh", ".env.example"):
+        for name in ("setup.sh", "start.sh", ".env.example", "compose.ingress.yml"):
             shutil.copy2(ROOT / name, bundle / name)
         fakebin = self.base / "bin"
         fakebin.mkdir()
@@ -39,6 +58,14 @@ esac
         ip = fakebin / "ip"
         ip.write_text("#!/bin/bash\nprintf '2: br0 inet %s/24 brd 192.168.30.255 scope global br0\\n' \"${FAKE_NAS_IP:-192.168.30.10}\"\n")
         ip.chmod(0o755)
+        if shutil.which("sha256sum") is None:
+            sha256sum = fakebin / "sha256sum"
+            sha256sum.write_text("""#!/usr/bin/env python3
+import hashlib, pathlib, sys
+path = pathlib.Path(sys.argv[-1])
+print(hashlib.sha256(path.read_bytes()).hexdigest() + "  " + str(path))
+""")
+            sha256sum.chmod(0o755)
         if shutil.which("flock") is None:
             flock = fakebin / "flock"
             flock.write_text("""#!/usr/bin/env python3
@@ -167,6 +194,66 @@ if args: sys.exit(subprocess.run(args).returncode)
         self.env["FAKE_RECREATE_EXIT"] = "1"
         self.assertNotEqual(self.call("start").returncode, 0)
         self.assertTrue(marker.exists())
+
+    def test_start_atomically_updates_beta3_ingress_and_preserves_instance_data(self):
+        self.prepare()
+        self.tokens()
+        ingress = self.project / "compose.ingress.yml"
+        ingress.write_bytes(LEGACY_INGRESS)
+        bundled = self.plugin / "bundle/compose.ingress.yml"
+        updated = bundled.read_bytes() + b"\n# Updated ingress\n"
+        bundled.write_bytes(updated)
+        data_file = self.project / "data/postgres-data/keep.txt"
+        data_file.write_bytes(b"existing instance data")
+        preserved = [self.project / ".env", data_file, *sorted((self.project / "secrets").iterdir())]
+        originals = {path: path.read_bytes() for path in preserved}
+        old_inode = ingress.stat().st_ino
+        self.assertEqual(self.call("check").returncode, 0)
+        self.assertEqual(ingress.read_bytes(), LEGACY_INGRESS)
+        result = self.call("start")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(ingress.read_bytes(), updated)
+        self.assertNotEqual(ingress.stat().st_ino, old_inode)
+        self.assertEqual({path: path.read_bytes() for path in preserved}, originals)
+        self.assertEqual(list(self.project.glob(".compose.ingress.yml.*")), [])
+        self.assertIn("compose up -d", self.docker_log())
+
+    def test_custom_ingress_prevents_start_without_overwrite(self):
+        self.prepare()
+        self.tokens()
+        ingress = self.project / "compose.ingress.yml"
+        custom = ingress.read_bytes() + b"\n# Local changes\n"
+        ingress.write_bytes(custom)
+        for action in ("check", "start"):
+            with self.subTest(action=action):
+                result = self.call(action)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("local changes", result.stderr)
+                self.assertEqual(ingress.read_bytes(), custom)
+        self.assertNotIn("compose up", self.docker_log())
+
+    def test_symlink_ingress_prevents_start_without_changing_target(self):
+        self.prepare()
+        self.tokens()
+        ingress = self.project / "compose.ingress.yml"
+        outside = self.base / "outside.yml"
+        original = ingress.read_bytes()
+        outside.write_bytes(original)
+        ingress.unlink()
+        ingress.symlink_to(outside)
+        self.assertNotEqual(self.call("start").returncode, 0)
+        self.assertTrue(ingress.is_symlink())
+        self.assertEqual(outside.read_bytes(), original)
+        self.assertNotIn("compose up", self.docker_log())
+
+    def test_symlink_bundle_prevents_start(self):
+        self.prepare()
+        self.tokens()
+        bundled = self.plugin / "bundle/compose.ingress.yml"
+        bundled.unlink()
+        bundled.symlink_to(self.project / "compose.ingress.yml")
+        self.assertNotEqual(self.call("start").returncode, 0)
+        self.assertNotIn("compose up", self.docker_log())
 
 
 if __name__ == "__main__":

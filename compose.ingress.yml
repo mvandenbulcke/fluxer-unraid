@@ -22,6 +22,8 @@ services:
       - --certificatesresolvers.dns-cloudflare.acme.storage=/acme/acme.json
       - --certificatesresolvers.dns-cloudflare.acme.dnschallenge.provider=cloudflare
       - --certificatesresolvers.dns-cloudflare.acme.dnschallenge.resolvers=1.1.1.1:53,1.0.0.1:53
+      - --certificatesresolvers.dns-cloudflare.acme.dnschallenge.propagation.disableanschecks=true
+      - --certificatesresolvers.dns-cloudflare.acme.dnschallenge.propagation.requireallrns=true
     environment:
       CF_DNS_API_TOKEN_FILE: /run/secrets/cloudflare-dns-token
     secrets:
