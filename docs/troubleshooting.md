@@ -82,7 +82,7 @@ An outdated-client message needs a compatible client update. For a delay without
 
 ## Messages pause or reconnect
 
-Keep WebSockets enabled for the hostname. Exclude `/api/`, `/gateway`, and `/livekit/` from browser challenges and external login screens. Keep Rocket Loader and HTML caching off for this hostname. See [Fluxer's Cloudflare guidance](https://docs.fluxer.com/operator/reverse-proxy/#cloudflare).
+Keep WebSockets enabled for the hostname. Exclude `/.well-known/fluxer`, `/api/`, `/gateway`, and `/livekit/` from browser challenges and external login screens. Keep Rocket Loader and HTML caching off for this hostname. See [Fluxer's Cloudflare guidance](https://docs.fluxer.com/operator/reverse-proxy/#cloudflare).
 
 The public checks include instance discovery, API health, app readiness, and a Gateway WebSocket handshake. A handshake checks transport connectivity. Authenticated message delivery needs a separate test with two accounts.
 

@@ -94,7 +94,7 @@ Use the same hostname as **Instance domain** in Unraid. Cloudflare creates the t
 
 Keep origin certificate verification enabled. Traefik gets the origin certificate through a DNS challenge. See [Cloudflare origin parameters](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/origin-parameters/).
 
-Keep WebSockets enabled. Disable Rocket Loader and HTML caching for this hostname. Exclude `/api/`, `/gateway`, and `/livekit/` from browser challenges or external login screens. Use Fluxer's account authentication. See [Fluxer's proxy settings](https://docs.fluxer.com/operator/reverse-proxy/#cloudflare).
+Keep WebSockets enabled. Disable Rocket Loader and HTML caching for this hostname. Exclude `/.well-known/fluxer`, `/api/`, `/gateway`, and `/livekit/` from browser challenges or external login screens. Use Fluxer's account authentication. See [Fluxer's proxy settings](https://docs.fluxer.com/operator/reverse-proxy/#cloudflare).
 
 ## Configure direct voice and video
 
