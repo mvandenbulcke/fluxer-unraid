@@ -18,7 +18,7 @@ jobs:
         run: bash -n setup.sh set-tokens.sh start.sh unraid-plugin/scripts/fluxerctl unraid-plugin/event/docker_started
       - name: Check PHP syntax
         run: php -l unraid-plugin/include/control.php
-      - name: Check the controller
+      - name: Check the package and controller
         run: python3 -m unittest discover -s tests -v
       - name: Build the plugin
-        run: python3 tools/build-unraid-plugin.py --version 2026.11.03.3 --repository "$GITHUB_REPOSITORY"
+        run: python3 tools/build-unraid-plugin.py --repository "$GITHUB_REPOSITORY"

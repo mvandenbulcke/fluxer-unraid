@@ -1,0 +1,57 @@
+name: Bug report
+description: Report an installer, Settings page, or deployment problem with the Unraid 7 beta.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This unofficial beta supports Unraid 7 only. Search existing issues before creating a report.
+        Community Applications submission remains on hold.
+        Include only short relevant log excerpts after removing secrets and personal details.
+        Never include .env files, tokens, setup keys, passwords, complete Compose output, or Docker inspect output.
+        Remove personal email addresses, hostnames, and IP addresses from logs.
+  - type: input
+    id: unraid_version
+    attributes:
+      label: Unraid version
+      placeholder: "7.x"
+    validations:
+      required: true
+  - type: input
+    id: plugin_version
+    attributes:
+      label: Fluxer plugin version
+      description: Read the version on the Unraid Plugins page.
+    validations:
+      required: true
+  - type: textarea
+    id: other_versions
+    attributes:
+      label: Other versions
+      description: Enter unknown for any version you cannot find.
+      value: |
+        Docker Engine:
+        Docker Compose:
+        Bundled Fluxer:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and reproduction steps
+      description: Describe the problem without including private instance details.
+      value: |
+        Steps:
+        1.
+
+        Expected result:
+
+        Actual result:
+
+        Affected service and health state:
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste only a short relevant excerpt after removing secrets and personal details.
+      render: text

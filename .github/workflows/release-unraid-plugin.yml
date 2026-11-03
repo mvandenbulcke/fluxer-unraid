@@ -17,10 +17,13 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Check shell scripts
+        run: bash -n setup.sh set-tokens.sh start.sh unraid-plugin/scripts/fluxerctl unraid-plugin/event/docker_started
+
       - name: Check PHP syntax
         run: php -l unraid-plugin/include/control.php
 
-      - name: Check the controller
+      - name: Check the package and controller
         run: python3 -m unittest discover -s tests -v
 
       - name: Build the plugin

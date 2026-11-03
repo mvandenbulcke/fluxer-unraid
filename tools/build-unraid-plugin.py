@@ -16,7 +16,7 @@ from pathlib import Path, PurePosixPath
 
 
 DEFAULT_REPOSITORY = "https://github.com/mvandenbulcke/fluxer-unraid"
-DEFAULT_VERSION = "2026.11.03.5"
+DEFAULT_VERSION = "2026.11.03.6"
 PLUGIN_PREFIX = PurePosixPath("usr/local/emhttp/plugins/fluxer")
 REQUIRED_BUNDLE_FILES = (
     ".env.example",
@@ -30,6 +30,10 @@ REQUIRED_BUNDLE_FILES = (
     "set-tokens.sh",
     "start.sh",
     "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "PUBLISHING.md",
+    "docs/manual-deployment.md",
     "LICENSE",
     "UPSTREAM.json",
 )
@@ -163,7 +167,21 @@ def sha256(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def build_manifest(repository: str, version: str, archive_name: str, digest: str) -> bytes:
+def release_notes(source: Path, version: str) -> str:
+    lines = source_file(source, "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+    heading = f"## {version}"
+    try:
+        start = lines.index(heading) + 1
+    except ValueError:
+        fail(f"Add release notes for {version} to CHANGELOG.md.")
+    end = next((index for index in range(start, len(lines)) if lines[index].startswith("## ")), len(lines))
+    body = "\n".join(lines[start:end]).strip()
+    if not body:
+        fail(f"Add release notes for {version} to CHANGELOG.md.")
+    return f"### {version}\n\n{body}\n"
+
+
+def build_manifest(repository: str, version: str, archive_name: str, digest: str, changes: str | None = None) -> bytes:
     repository_url = f"https://github.com/{repository}"
     cache_path = f"/boot/config/plugins/fluxer/{archive_name}"
     plugin_path = f"/{PLUGIN_PREFIX}"
@@ -178,7 +196,7 @@ def build_manifest(repository: str, version: str, archive_name: str, digest: str
         "project": repository_url,
         "icon": "comments",
     })
-    ET.SubElement(manifest, "CHANGES").text = (
+    ET.SubElement(manifest, "CHANGES").text = changes if changes is not None else (
         f"### {version}\n"
         "- Unofficial Fluxer installer for Unraid 7.\n"
         "- Install the deployment files and a Settings page.\n"
@@ -257,12 +275,13 @@ def main() -> int:
     version = release_version(arguments.version)
     source = arguments.source.resolve()
     output = (arguments.output_dir or source / "dist").resolve()
+    changes = release_notes(source, version)
     inventory = package_inventory(source)
     output.mkdir(parents=True, exist_ok=True)
     archive = output / f"fluxer-unraid-{version}.tar.gz"
     write_archive(archive, inventory)
     manifest = output / "fluxer.plg"
-    manifest.write_bytes(build_manifest(repository, version, archive.name, sha256(archive)))
+    manifest.write_bytes(build_manifest(repository, version, archive.name, sha256(archive), changes))
     ET.parse(manifest)
     checksums = output / "SHA256SUMS"
     checksums.write_text(

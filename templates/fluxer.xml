@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Plugin>
   <Name>Fluxer for Unraid</Name>
+  <PluginAuthor>mvandenbulcke</PluginAuthor>
   <PluginURL>https://github.com/mvandenbulcke/fluxer-unraid/releases/latest/download/fluxer.plg</PluginURL>
   <Project>https://github.com/mvandenbulcke/fluxer-unraid</Project>
   <Support>https://github.com/mvandenbulcke/fluxer-unraid/issues</Support>
