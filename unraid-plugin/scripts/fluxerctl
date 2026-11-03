@@ -64,7 +64,10 @@ check_managed_ingress() {
   cmp -s -- "$bundled" "$current" && return 0
   digest=$(sha256sum -- "$current") || fail 'Cannot check the ingress file.'
   digest=${digest%% *}
-  [[ "$digest" == c6e52a07f1512dc2aa023635a78e08bbb6723c9332d50eb22e76c570ff46dd0e ]] || fail 'The ingress file has local changes. Merge the bundled compose.ingress.yml before you start Fluxer.'
+  case "$digest" in
+    c6e52a07f1512dc2aa023635a78e08bbb6723c9332d50eb22e76c570ff46dd0e|496889bf2a90d982a39d100ad46b00e685467bd8c5d61de6ce9622feee9f060c) ;;
+    *) fail 'The ingress file has local changes. Merge the bundled compose.ingress.yml before you start Fluxer.' ;;
+  esac
 }
 update_managed_ingress() {
   local bundled current temporary

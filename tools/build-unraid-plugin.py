@@ -16,7 +16,7 @@ from pathlib import Path, PurePosixPath
 
 
 DEFAULT_REPOSITORY = "https://github.com/mvandenbulcke/fluxer-unraid"
-DEFAULT_VERSION = "2026.11.03.4"
+DEFAULT_VERSION = "2026.11.03.5"
 PLUGIN_PREFIX = PurePosixPath("usr/local/emhttp/plugins/fluxer")
 REQUIRED_BUNDLE_FILES = (
     ".env.example",

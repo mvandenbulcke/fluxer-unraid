@@ -26,6 +26,8 @@ services:
       - --certificatesresolvers.dns-cloudflare.acme.dnschallenge.propagation.requireallrns=true
     environment:
       CF_DNS_API_TOKEN_FILE: /run/secrets/cloudflare-dns-token
+      CLOUDFLARE_PROPAGATION_TIMEOUT: "3600"
+      CLOUDFLARE_POLLING_INTERVAL: "10"
     secrets:
       - cloudflare-dns-token
     volumes:

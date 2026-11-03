@@ -1,5 +1,6 @@
 import base64
 import gzip
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -195,11 +196,12 @@ if args: sys.exit(subprocess.run(args).returncode)
         self.assertNotEqual(self.call("start").returncode, 0)
         self.assertTrue(marker.exists())
 
-    def test_start_atomically_updates_beta3_ingress_and_preserves_instance_data(self):
+    def assert_ingress_upgrade_preserves_instance_data(self, legacy, expected_digest):
+        self.assertEqual(hashlib.sha256(legacy).hexdigest(), expected_digest)
         self.prepare()
         self.tokens()
         ingress = self.project / "compose.ingress.yml"
-        ingress.write_bytes(LEGACY_INGRESS)
+        ingress.write_bytes(legacy)
         bundled = self.plugin / "bundle/compose.ingress.yml"
         updated = bundled.read_bytes() + b"\n# Updated ingress\n"
         bundled.write_bytes(updated)
@@ -209,7 +211,7 @@ if args: sys.exit(subprocess.run(args).returncode)
         originals = {path: path.read_bytes() for path in preserved}
         old_inode = ingress.stat().st_ino
         self.assertEqual(self.call("check").returncode, 0)
-        self.assertEqual(ingress.read_bytes(), LEGACY_INGRESS)
+        self.assertEqual(ingress.read_bytes(), legacy)
         result = self.call("start")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(ingress.read_bytes(), updated)
@@ -217,6 +219,24 @@ if args: sys.exit(subprocess.run(args).returncode)
         self.assertEqual({path: path.read_bytes() for path in preserved}, originals)
         self.assertEqual(list(self.project.glob(".compose.ingress.yml.*")), [])
         self.assertIn("compose up -d", self.docker_log())
+
+    def test_start_atomically_updates_beta3_ingress_and_preserves_instance_data(self):
+        self.assert_ingress_upgrade_preserves_instance_data(
+            LEGACY_INGRESS,
+            "c6e52a07f1512dc2aa023635a78e08bbb6723c9332d50eb22e76c570ff46dd0e",
+        )
+
+    def test_start_atomically_updates_beta4_ingress_and_preserves_instance_data(self):
+        beta4_ingress = LEGACY_INGRESS.replace(
+            b"      - --certificatesresolvers.dns-cloudflare.acme.dnschallenge.resolvers=1.1.1.1:53,1.0.0.1:53\n",
+            b"      - --certificatesresolvers.dns-cloudflare.acme.dnschallenge.resolvers=1.1.1.1:53,1.0.0.1:53\n"
+            b"      - --certificatesresolvers.dns-cloudflare.acme.dnschallenge.propagation.disableanschecks=true\n"
+            b"      - --certificatesresolvers.dns-cloudflare.acme.dnschallenge.propagation.requireallrns=true\n",
+        )
+        self.assert_ingress_upgrade_preserves_instance_data(
+            beta4_ingress,
+            "496889bf2a90d982a39d100ad46b00e685467bd8c5d61de6ce9622feee9f060c",
+        )
 
     def test_custom_ingress_prevents_start_without_overwrite(self):
         self.prepare()
