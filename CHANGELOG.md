@@ -2,6 +2,11 @@
 
 Each version has an exact heading for the package builder. Release notes separate package changes from runtime test results.
 
+## Unreleased
+
+- Add the required Unraid trademark attribution to the public guides and catalog metadata.
+- Record the beta 6 management update test and pending Community Applications review.
+
 ## 2026.11.03.6
 
 Public beta package for Community Applications review. Runtime behavior remains the same as beta `2026.11.03.5`.

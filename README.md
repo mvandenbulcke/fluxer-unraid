@@ -1,5 +1,7 @@
 # Fluxer for Unraid 7
 
+Unraid® is a registered trademark of Lime Technology, Inc. This application is not affiliated with, endorsed, or sponsored by Lime Technology, Inc.
+
 Run the official Fluxer Compose bundle through a native **Settings > Fluxer** page. This unofficial beta uses Cloudflare Tunnel and Traefik for the web app. Voice and video use two direct router port forwards.
 
 **[Open the documentation](docs/README.md)** · [Installation](docs/installation.md) · [Troubleshooting](docs/troubleshooting.md)
@@ -15,7 +17,7 @@ Run the official Fluxer Compose bundle through a native **Settings > Fluxer** pa
 
 3. Follow the [installation guide](docs/installation.md) for Cloudflare credentials, the HTTPS route, voice ports, and first administrator setup.
 
-Community Applications submission is in progress. An approved Apps listing is not confirmed. The plugin install URL remains available during review.
+Community Applications submission is pending manual review. Approval and an Apps listing are not confirmed. The plugin install URL remains available during review.
 
 ## Requirements
 
@@ -25,7 +27,9 @@ You need a Cloudflare-managed hostname and a public WAN address for direct calls
 
 ## Test status
 
-HTTP and browser checks passed for the public setup wizard, instance discovery, API health, app readiness, and the Gateway WebSocket handshake. The Settings page and 21 container health checks also passed on Unraid 7.3.4.
+The beta `2026.11.03.6` management update installed on Unraid 7.3.4. The Settings page and 21 container health checks passed. The application runtime remains unchanged from the deployment tested with beta `2026.11.03.5`.
+
+HTTP and browser checks passed for the public setup wizard, instance discovery, API health, app readiness, and the Gateway WebSocket handshake.
 
 The operator reports working voice and video. Text chat needs another test because the operator reported a possible desktop delay. Certificate renewal through the VPN alone remains untested. See the [test notes](docs/manual-deployment.md#checks).
 

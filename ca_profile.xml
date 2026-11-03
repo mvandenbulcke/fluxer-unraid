@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <CommunityApplications>
-  <Profile>Unofficial Fluxer installer for Unraid 7. Manage the official Fluxer containers through a native Settings page. Web access uses Cloudflare Tunnel. Calls use TCP 7881 and UDP 7882 through router forwarding. Report installer issues in the project repository.</Profile>
+  <Profile>Unraid® is a registered trademark of Lime Technology, Inc. This application is not affiliated with, endorsed, or sponsored by Lime Technology, Inc.
+
+Unofficial Fluxer installer for Unraid 7. Manage the official Fluxer containers through a native Settings page. Web access uses Cloudflare Tunnel. Calls use TCP 7881 and UDP 7882 through router forwarding. Report installer issues in the project repository.</Profile>
   <Icon>https://raw.githubusercontent.com/mvandenbulcke/fluxer-unraid/main/icon.svg</Icon>
   <WebPage>https://github.com/mvandenbulcke/fluxer-unraid</WebPage>
   <Forum>https://github.com/mvandenbulcke/fluxer-unraid/issues</Forum>

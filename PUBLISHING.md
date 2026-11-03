@@ -1,14 +1,16 @@
 # Publish the Unraid plugin
 
+Unraid® is a registered trademark of Lime Technology, Inc. This application is not affiliated with, endorsed, or sponsored by Lime Technology, Inc.
+
 The public source repository is [mvandenbulcke/fluxer-unraid](https://github.com/mvandenbulcke/fluxer-unraid). This unofficial beta plugin supports Unraid 7 only.
 
-Community Applications submission is in progress. The repository has no approved Apps listing yet. GitHub releases distribute the beta through **Plugins > Install Plugin**. A GitHub release does not create an Unraid Apps entry.
+Community Applications received the submission on November 3, 2026. Its status is **submitted**, pending manual review. The repository has no approved Apps listing yet. GitHub releases distribute the beta through **Plugins > Install Plugin**. A GitHub release does not create an Unraid Apps entry.
 
 Beta `2026.11.03.5` installed on Unraid 7.3.4. The Settings page and 21 container health checks passed. The public HTTPS setup wizard loads. Instance discovery, API health, app readiness, and the Gateway WebSocket handshake passed. The operator reported successful voice and video calls. Text chat remains unconfirmed after a possible desktop delay. Certificate renewal through the VPN alone remains untested.
 
-## Candidate preparation
+## Package version
 
-Version `2026.11.03.6` adds documentation, package checks, and catalog metadata. [CHANGELOG.md](CHANGELOG.md) records those changes. It keeps the runtime behavior from beta `2026.11.03.5`. Release builds and Apps submission use the steps below. The GitHub release page records the current public version.
+Beta `2026.11.03.6` is public. It adds documentation, package checks, and catalog metadata. [CHANGELOG.md](CHANGELOG.md) records those changes. It keeps the runtime behavior from beta `2026.11.03.5`. The management update installed on Unraid 7.3.4. Its Settings page and 21 container health checks passed. Release builds and Apps submission use the steps below. The GitHub release page records the current public version.
 
 ## Beta release
 
@@ -53,7 +55,9 @@ The owner authorized submission of this beta. Complete the package checks before
 - Run **Validate**, then **Scan**, in the [submission portal](https://ca.unraid.net/submit).
 - Review the listing preview before the final submission.
 
-The submission portal requires manual review for plugins. A successful submission does not mean approval. Record the submission result and status after the portal confirms it. GitHub Issues supplies the support link. No separate forum thread is required by the current field rules.
+The submission portal requires manual review for plugins. A successful submission does not mean approval. The portal confirmed receipt on November 3, 2026. Its final scan found one plugin with no errors or warnings. GitHub Issues supplies the support link. No separate forum thread is required by the current field rules.
+
+The [naming policy](https://unraid.net/policies) requires the trademark attribution in the public description and documentation. Keep that notice near the first Unraid reference.
 
 ## Support and maintenance
 

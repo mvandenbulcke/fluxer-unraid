@@ -1,5 +1,7 @@
 # Troubleshoot Fluxer on Unraid
 
+Unraid® is a registered trademark of Lime Technology, Inc. This application is not affiliated with, endorsed, or sponsored by Lime Technology, Inc.
+
 [Documentation](README.md) · [Installation](installation.md) · [Manual deployment](manual-deployment.md)
 
 ## Find the affected layer

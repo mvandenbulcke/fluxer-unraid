@@ -1,5 +1,7 @@
 # Fluxer for Unraid documentation
 
+Unraid® is a registered trademark of Lime Technology, Inc. This application is not affiliated with, endorsed, or sponsored by Lime Technology, Inc.
+
 Start with the [installation guide](installation.md). It covers the Unraid interface, Cloudflare credentials, HTTPS, direct calls, storage, and backups.
 
 ## Find a guide
@@ -29,12 +31,14 @@ The web app uses Fluxer's own account authentication. Callers need no VPN for th
 
 | Area | Status |
 | --- | --- |
-| Unraid Settings page and 21 container health checks | Passed on Unraid 7.3.4 |
+| Unraid Settings page and 21 container health checks | Passed after the beta `2026.11.03.6` management update on Unraid 7.3.4 |
 | Public HTTPS setup wizard, discovery, API, app readiness, and Gateway handshake | HTTP and browser checks passed |
 | Voice and video | Operator reports success |
 | Text chat | Unconfirmed after a possible desktop delay |
 | Certificate renewal through the VPN alone | Untested |
 
-Community Applications submission is in progress. Approval and an Apps listing are not confirmed.
+The management update kept the application runtime unchanged from the deployment tested with beta `2026.11.03.5`.
+
+Community Applications submission is pending manual review. Approval and an Apps listing are not confirmed.
 
 This documentation applies to the bundled release recorded in [UPSTREAM.json](../UPSTREAM.json). The package is an unofficial beta for Unraid 7 only.

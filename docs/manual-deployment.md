@@ -1,5 +1,7 @@
 # Fluxer on Unraid
 
+Unraid® is a registered trademark of Lime Technology, Inc. This application is not affiliated with, endorsed, or sponsored by Lime Technology, Inc.
+
 The web app uses Cloudflare Tunnel and Traefik. Calls connect directly through two router port forwards to the NAS. Callers need no VPN.
 
 The website remains public with Fluxer account authentication. LiveKit detects the public IP address automatically. LAN callers use the same instance.
@@ -130,7 +132,7 @@ Before an update, stop the stack with `docker compose stop`. Back up the complet
 
 Local checks cover the upstream archive checksum, script syntax, secret creation, key formats, and protection against a second setup. The merged Compose configuration binds both call ports to the saved NAS address.
 
-Beta `2026.11.03.5` installed on Unraid 7.3.4. The Settings page and 21 container health checks passed. The public HTTPS setup wizard loads. These public checks passed:
+The beta `2026.11.03.6` management update installed on Unraid 7.3.4. The Settings page and 21 container health checks passed. The application runtime remains unchanged from the deployment tested with beta `2026.11.03.5`. The public HTTPS setup wizard loads. These public checks passed:
 
 | Check | Observed result |
 | --- | --- |
@@ -139,4 +141,4 @@ Beta `2026.11.03.5` installed on Unraid 7.3.4. The Settings page and 21 containe
 | `/_ready` | HTTP 200 |
 | `/gateway` WebSocket | HTTP 101, then opcode 10 Hello with a 41250 ms heartbeat interval |
 
-The operator reported successful voice and video calls. Text chat remains unconfirmed after a possible desktop delay. These reports are separate from the public checks above. Future certificate renewal through the VPN alone remains untested. Community Applications submission is in progress. The beta has no approved Apps listing yet.
+The operator reported successful voice and video calls. Text chat remains unconfirmed after a possible desktop delay. These reports are separate from the public checks above. Future certificate renewal through the VPN alone remains untested. Community Applications submission is pending manual review. Approval and an Apps listing are not confirmed.

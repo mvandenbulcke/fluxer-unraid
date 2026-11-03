@@ -1,5 +1,7 @@
 # Install Fluxer through Unraid
 
+Unraid® is a registered trademark of Lime Technology, Inc. This application is not affiliated with, endorsed, or sponsored by Lime Technology, Inc.
+
 [Documentation](README.md) · [Troubleshooting](troubleshooting.md) · [Manual deployment](manual-deployment.md)
 
 This guide uses the native Unraid interface. The plugin supports Unraid 7 only. It runs the official Fluxer bundle with Cloudflare Tunnel, Traefik, and direct call ports.

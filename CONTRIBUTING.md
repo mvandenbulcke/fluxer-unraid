@@ -1,6 +1,8 @@
 # Contribute to Fluxer for Unraid
 
-This repository packages an unofficial beta plugin for Unraid 7. Keep changes within the installer, controller, local Compose overrides, tests, and documentation. Community Applications submission is in progress. The beta has no approved Apps listing yet.
+Unraid® is a registered trademark of Lime Technology, Inc. This application is not affiliated with, endorsed, or sponsored by Lime Technology, Inc.
+
+This repository packages an unofficial beta plugin for Unraid 7. Keep changes within the installer, controller, local Compose overrides, tests, and documentation. Community Applications received the beta submission on November 3, 2026. Manual review remains pending. The beta has no approved Apps listing yet.
 
 ## Propose a change
 
