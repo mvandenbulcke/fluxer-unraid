@@ -8,6 +8,7 @@ import datetime as dt
 import gzip
 import hashlib
 import io
+import json
 import re
 import sys
 import tarfile
@@ -16,7 +17,7 @@ from pathlib import Path, PurePosixPath
 
 
 DEFAULT_REPOSITORY = "https://github.com/mvandenbulcke/fluxer-unraid"
-DEFAULT_VERSION = "2026.11.03.6"
+DEFAULT_VERSION = "2026.11.15.2"
 PLUGIN_PREFIX = PurePosixPath("usr/local/emhttp/plugins/fluxer")
 REQUIRED_BUNDLE_FILES = (
     ".env.example",
@@ -50,9 +51,14 @@ OPTIONAL_BUNDLE_FILES = (
     "voice/edge.env.example",
 )
 BUNDLE_DIRECTORIES = ("ca", "certs", "caddy.d", "caddy.d/sites")
+UPGRADE_FILES = {
+    ".env.example", "Caddyfile", "UPSTREAM.json", "docker-compose.yml",
+    "docker-compose.proxy.yml", "compose.unraid.yml", "compose.ingress.yml",
+    "compose.voice-direct.yml",
+}
 PLUGIN_SUFFIXES = {
-    ".cfg", ".css", ".html", ".js", ".json", ".md", ".page", ".php",
-    ".png", ".sh", ".svg", ".txt",
+    ".cfg", ".cron", ".css", ".html", ".js", ".json", ".md", ".page", ".php",
+    ".png", ".sh", ".svg", ".tsv", ".txt",
 }
 FORBIDDEN_COMPONENTS = {".git", ".env", "data", "secrets", "backups", "dist"}
 
@@ -105,6 +111,7 @@ def package_inventory(source: Path) -> dict[PurePosixPath, Path | None]:
 
     plugin_source = source / "unraid-plugin"
     source_file(source, "unraid-plugin/Fluxer.page")
+    source_file(source, "unraid-plugin/backup-retention.cron")
     for path in sorted(plugin_source.rglob("*")):
         relative = PurePosixPath(path.relative_to(plugin_source).as_posix())
         if path.is_symlink():
@@ -168,6 +175,36 @@ def write_archive(target: Path, inventory: dict[PurePosixPath, Path | None]) -> 
 def sha256(path: Path) -> str:
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def check_upgrade_manifest(source: Path) -> None:
+    manifest = source / "unraid-plugin/upgrade.tsv"
+    if not manifest.exists() and not manifest.is_symlink():
+        return
+    lines = source_file(source, "unraid-plugin/upgrade.tsv").read_text(encoding="utf-8").splitlines()
+    versions = lines[0].split("\t") if lines else []
+    if (
+        len(versions) != 2
+        or versions[0] >= versions[1]
+        or not all(re.fullmatch(r"[0-9]{4}\.[0-9]{4}\.[0-9]{6}", version) for version in versions)
+    ):
+        fail("The upgrade manifest must name a source release and a newer target release.")
+    upstream = json.loads(source_file(source, "UPSTREAM.json").read_text(encoding="utf-8"))
+    if not isinstance(upstream, dict) or upstream.get("release") != versions[1]:
+        fail("The upgrade target must match the bundled Fluxer release.")
+    seen = set()
+    for line in lines[1:]:
+        fields = line.split("\t")
+        if len(fields) != 3:
+            fail("Each upgrade file must have a path and two SHA256 checksums.")
+        name, installed, bundled = fields
+        if name not in UPGRADE_FILES or name in seen:
+            fail(f"Unexpected or duplicate upgrade file: {name}")
+        if not re.fullmatch(r"[0-9a-f]{64}", installed) or bundled != sha256(source_file(source, name)):
+            fail(f"Invalid upgrade checksum: {name}")
+        seen.add(name)
+    if seen != UPGRADE_FILES:
+        fail("The upgrade manifest must cover all deployment files.")
 
 
 def release_notes(source: Path, version: str) -> str:
@@ -234,6 +271,11 @@ set -euo pipefail
 umask 022
 archive='{cache_path}'
 prefix='{PLUGIN_PREFIX}'
+cron='/boot/config/plugins/fluxer/backup-retention.cron'
+if [[ -L "$cron" || ( -e "$cron" && ! -f "$cron" ) ]]; then
+  printf '%s\\n' 'The backup schedule path must be a regular file.' >&2
+  exit 1
+fi
 members=$(tar -tzf "$archive")
 while IFS= read -r member; do
   case "$member" in
@@ -246,6 +288,8 @@ while IFS= read -r member; do
 done <<< "$members"
 install -d -m 0755 '{plugin_path}'
 tar -xzf "$archive" -C / --no-same-owner --no-same-permissions "$prefix"
+install -m 0644 -- '{plugin_path}/backup-retention.cron' "$cron"
+/usr/local/sbin/update_cron
 printf '%s\\n' 'Fluxer settings are available under Settings > Fluxer.'
 printf '%s\\n' 'Use the Settings page to configure and start the containers.'
 """.strip() + "\n"
@@ -257,6 +301,8 @@ if (( EUID != 0 )); then
   exit 1
 fi
 plugin_path='{plugin_path}'
+rm -f -- /boot/config/plugins/fluxer/backup-retention.cron
+/usr/local/sbin/update_cron
 if [[ -d "$plugin_path" && ! -L "$plugin_path" ]]; then
   find "$plugin_path" -xdev -depth -delete
 fi
@@ -279,6 +325,7 @@ def main() -> int:
     source = arguments.source.resolve()
     output = (arguments.output_dir or source / "dist").resolve()
     changes = release_notes(source, version)
+    check_upgrade_manifest(source)
     inventory = package_inventory(source)
     output.mkdir(parents=True, exist_ok=True)
     archive = output / f"fluxer-unraid-{version}.tar.gz"

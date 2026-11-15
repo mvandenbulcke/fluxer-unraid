@@ -147,8 +147,65 @@ Keep the database and its matching application keys together for restoration. A 
 
 A plugin update replaces the management code. **Start Fluxer** also upgrades known managed ingress files. It preserves custom ingress files and requests a manual merge. These actions preserve application keys and data.
 
-A full Fluxer release upgrade remains manual. Use the [manual deployment guide](manual-deployment.md#storage-and-updates) before changing the upstream bundle. The plugin does not automate a full application upgrade or database migration.
+CA Auto Update Applications can install a newer published plugin package when Fluxer is selected for plugin updates. Use **Upgrade Fluxer** or enable automatic upgrades to apply its bundled application release. Keep individual Fluxer containers out of scheduled Docker updates so the services stay on the same release. [CA plugin updater](https://github.com/Squidly271/ca.update.applications/blob/master/source/ca.update.applications/usr/local/emhttp/plugins/ca.update.applications/scripts/updateApplications.php#L62-L98)
 
 **Start Fluxer** enables automatic start after Docker starts. **Stop Fluxer** disables that behavior. Plugin removal keeps the containers and appdata. Stop Fluxer before removing its management plugin.
 
 To replace a Cloudflare token, use **Save tokens** on **Settings > Fluxer**. Empty fields keep their saved values. Select **Start Fluxer** to apply a token change.
+
+## Upgrade the Fluxer application
+
+New setups use Fluxer `2026.1114.195738`. The guided upgrade supports `2026.1102.205049` to `2026.1114.195738` with the managed Compose files and default data location. If you changed a managed file, added a Compose override, or changed the data path, use the manual procedure. [Manual deployment](manual-deployment.md#storage-and-updates)
+
+Keep a separate backup on another disk before the upgrade. Allow space for the local project copy and for the new container images.
+
+1. In **Settings > Fluxer**, compare **Installed Fluxer release** with **Bundled Fluxer release** under **Application upgrade**.
+2. During a maintenance window, select **Upgrade Fluxer** and confirm the target release.
+3. Monitor progress on the Settings page. The plugin checks the new Compose configuration and downloads the images before it stops the services.
+4. After the upgrade finishes, check the service status. Services with health checks should report healthy. The `seaweedfs-init` service exits after success.
+5. Open Fluxer and test sign-in, message delivery, uploads, and a call.
+
+After stopping the services, the plugin saves a complete copy of the project under `/mnt/user/appdata/fluxer-upgrades`. **Deployment backup** shows the path. Only root can access the backup. It includes the database, uploads, application keys, Cloudflare tokens, and certificates.
+
+The new release starts after the backup completes. If the upgrade fails or stops partway through, read the status before restarting. Use **Restore backup** to return to a saved project and its data.
+
+### Enable automatic upgrades
+
+Automatic upgrades are off by default.
+
+1. Open **Automatic upgrades** in **Settings > Fluxer**.
+2. Select **Enable automatic upgrades**.
+3. Select **Save automatic upgrades**.
+
+The plugin checks daily at 04:00 in the NAS time zone. It checks the Fluxer release bundled with the installed plugin package. If CA Auto Update Applications installs a package with a supported upgrade, Fluxer can apply it at the next scheduled check.
+
+The scheduled job uses the same checks and local backup as **Upgrade Fluxer**. It stops Fluxer while it copies the project and applies the new release. The job skips a stopped instance or one that needs recovery.
+
+The job tries each bundled release once. **Last attempted release** shows the target of its last attempt. After a failed attempt, check the status and correct the reported error. Use **Upgrade Fluxer** to retry when it is available.
+
+## Restore an upgrade backup
+
+Use **Restore backup** in **Settings > Fluxer** for complete backups the plugin created with the default project and data layout. Use the manual procedure for a custom layout, external storage, or a backup kept elsewhere. [Manual recovery](manual-deployment.md#recover-from-an-upgrade)
+
+Allow space for a copy of the selected backup and for its container images.
+
+1. Under **Restore from backup**, select a **Backup** by its Fluxer release and UTC time.
+2. During a maintenance window, select **Restore backup** and confirm your selection.
+3. Wait for the restore to finish. The plugin copies and checks the backup and downloads images before it stops Fluxer. It starts the restored release and waits for container health checks.
+4. Check the installed release and open Fluxer. Test sign-in, message delivery, uploads, and a call.
+
+If the current project exists, the plugin moves it to a private `displaced-XXXXXX/project` folder under `/mnt/user/appdata/fluxer-upgrades`. **Previous project** shows its path. The restored instance contains only the data from the selected backup. Messages, uploads, and settings changes made after that time are absent from the restored instance.
+
+The restore turns automatic upgrades off before it replaces the project. After you check the restored instance, enable automatic upgrades again if you want future scheduled updates.
+
+If the restore fails, read the status and correct the reported error. Select **Restore backup** again with the same or another backup. If a restore is unavailable, use the manual recovery guide.
+
+## Set a backup retention period
+
+1. Open **Backup retention** in **Settings > Fluxer**.
+2. Enter a number from 0 to 3650 in **Retention period (days)**.
+3. Select **Save retention**.
+
+The default is 0, which keeps all backups. With a positive period, Unraid checks for expired backups at 04:15 in the NAS time zone. Saving the setting schedules no immediate deletion.
+
+Cleanup only considers backups this version or a later version of the plugin marks complete. It keeps the newest eligible backup at any age. It also keeps legacy backups, incomplete copies, and previous projects preserved by a restore. Cleanup waits while an upgrade or restore runs or needs recovery.

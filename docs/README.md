@@ -11,6 +11,7 @@ Start with the [installation guide](installation.md). It covers the Unraid inter
 | Install through the Unraid interface | [Installation](installation.md) |
 | Check appdata and backups | [Storage and backups](installation.md#storage-and-backups) |
 | Update or remove the plugin | [Updates and removal](installation.md#updates-and-removal) |
+| Upgrade the Fluxer application | [Upgrade Fluxer](installation.md#upgrade-the-fluxer-application) |
 | Fix a connection or client problem | [Troubleshooting](troubleshooting.md) |
 | Use Compose or configure an outbound VPN | [Manual deployment](manual-deployment.md) |
 | Report a bug or contribute | [Contribution guide](../CONTRIBUTING.md) |

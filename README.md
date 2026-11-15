@@ -33,7 +33,11 @@ HTTP and browser checks passed for the public setup wizard, instance discovery, 
 
 The operator reports working voice and video. Text chat needs another test because the operator reported a possible desktop delay. Certificate renewal through the VPN alone remains untested. See the [test notes](docs/manual-deployment.md#checks).
 
-The bundled Fluxer release is `2026.1102.205049`. [UPSTREAM.json](UPSTREAM.json) records its source and checksum. Plugin updates manage the wrapper and known ingress changes. Full Fluxer release upgrades remain manual.
+The deployment tested above ran Fluxer `2026.1102.205049`. The new bundle uses Fluxer `2026.1114.195738`. [Bundle source and checksum](UPSTREAM.json)
+
+## Upgrade Fluxer
+
+The upgrade flow in **Settings > Fluxer** supports one release pair, `2026.1102.205049` to `2026.1114.195738`. It prepares the new release before downtime and backs up the project before changing its files. Use the manual procedure for other release pairs or custom deployments. [Upgrade instructions](docs/installation.md#upgrade-the-fluxer-application)
 
 ## Support and development
 

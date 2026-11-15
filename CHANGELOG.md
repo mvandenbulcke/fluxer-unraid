@@ -2,10 +2,22 @@
 
 Each version has an exact heading for the package builder. Release notes separate package changes from runtime test results.
 
-## Unreleased
+## 2026.11.15.2
+
+- List eligible Fluxer backups in Settings and restore the selected release and data.
+- Keep a private copy of the project from before the restore.
+- Check the restored services before reporting success.
+- Add an optional backup retention period. The daily cleanup keeps the newest complete backup.
+- Add opt-in daily upgrades for supported releases bundled with the plugin.
+- Turn off automatic upgrades when a backup is restored.
+
+## 2026.11.15.1
 
 - Add the required Unraid trademark attribution to the public guides and catalog metadata.
 - Record the beta 6 management update test and pending Community Applications review.
+- Bundle Fluxer release `2026.1114.195738`.
+- Add a guided upgrade from Fluxer `2026.1102.205049` for default deployments.
+- Check local files and download images before downtime. Save a backup and check service health.
 
 ## 2026.11.03.6
 

@@ -11,7 +11,7 @@ Web:   Internet -> Cloudflare Tunnel -> Traefik -> Fluxer
 Calls: Internet / LAN clients -> router public IP -> NAS LAN address -> LiveKit
 ```
 
-This project includes the official Fluxer Compose bundle for release `2026.1102.205049`. `UPSTREAM.json` records the source and archive checksum. The three local Compose files add Unraid storage, Traefik, Cloudflare Tunnel, and call access.
+This project includes the official Fluxer Compose bundle for release `2026.1114.195738`. `UPSTREAM.json` records the source and archive checksum. The three local Compose files add Unraid storage, Traefik, Cloudflare Tunnel, and call access.
 
 ## Requirements
 
@@ -124,9 +124,37 @@ All eight Docker volumes use bind mounts under `FLUXER_DATA_DIR`. Traefik stores
 
 The native plugin upgrades a known managed `compose.ingress.yml` during **Start Fluxer**. It preserves custom ingress files and stops for a manual merge. This upgrade does not change the database, application keys, or tokens.
 
-Before an update, stop the stack with `docker compose stop`. Back up the complete project and data folders. Copy the new official release bundle into the project. Keep the local Compose files and secrets. Compare the new LiveKit configuration with `compose.voice-direct.yml`. Start the stack with `bash start.sh`.
+The plugin can check for a supported bundled application upgrade each day at 04:00 in the NAS time zone. This setting is off by default. Clear **Enable automatic upgrades** and select **Save automatic upgrades** before a manual update or recovery. [Automatic upgrades](installation.md#enable-automatic-upgrades)
+
+Use the guided upgrade for the supported release pair and default project layout. Use these manual steps for other release pairs, custom Compose files, or external data. [Guided upgrade](installation.md#upgrade-the-fluxer-application)
+
+1. Download the target Fluxer Compose release to a separate folder. Read its release notes.
+2. Compare the new Compose files and Caddyfile with your current files. Check storage mounts, LiveKit settings, and port bindings. Prepare any override changes in the separate folder.
+3. Stop the stack with **Stop Fluxer** or `docker compose stop` for a manual installation. Back up the complete project and any data outside it, including external object storage.
+4. Copy the reviewed files into the original project folder. Add any new required variables from `.env.example` to the existing `.env`. Keep the same Compose project name, settings, and keys.
+5. Run `docker compose config --quiet`. If it passes, start the stack with `bash start.sh`. Check service health, then test sign-in, chat, uploads, and a call.
+
+Fluxer documents database dumps, volume backups, and restore with the original release bundle. Adapt those steps to the bind mounts in this project. [Fluxer Compose upgrade guide](https://docs.fluxer.com/operator/docker-compose/#upgrade)
 
 `FLUXER_TUNNEL_SUBNET` defaults to `172.30.90.0/24`. Change it before first start if that range overlaps another network. If the NAS address changes, update `FLUXER_NAS_IP`, the router forwards, and the containers.
+
+### Recover from an upgrade
+
+If the upgrade reports a failure, read the status and controller log. If the upgrade failed before it changed the project and the status allows a restart, correct the error first. Select **Start Fluxer** to start the original release.
+
+If the status calls for recovery, use **Restore backup** in **Settings > Fluxer** with the complete backup made before the upgrade. The backup list shows the timestamp and release. [Restore an upgrade backup](installation.md#restore-an-upgrade-backup)
+
+Use the steps below if the restore action is unavailable or the deployment uses custom storage. The guided upgrade saves its copy in a `backup-XXXXXX/project` folder under `/mnt/user/appdata/fluxer-upgrades`. Use the backup path in the status. After a restore attempt, **Previous project** shows where the plugin moved the prior project, if it existed. If you cannot identify a complete copy of the intended release and its data, follow the [troubleshooting guide](troubleshooting.md#request-support) before restarting.
+
+1. Stop the Fluxer containers before restoring the backup. Docker can start containers after a reboot while the plugin still blocks **Start Fluxer**.
+2. Move the failed project folder aside for diagnosis.
+3. Restore the complete backup to the original project path with its file permissions. Restore external data from the matching backup if the deployment uses it.
+4. Check that `UPSTREAM.json` identifies the original release. Run `docker compose config --quiet` in the restored project. Check that the data path points to the restored data.
+5. If `/mnt/user/appdata/fluxer-upgrades/pending` exists, remove only that marker after these checks pass. Start the original release.
+
+Check the service status and open the instance to check your data. The restored instance contains data only through the backup time. [Fluxer restore guide](https://docs.fluxer.com/operator/docker-compose/#restore-a-backup)
+
+The [retention setting](installation.md#set-a-backup-retention-period) applies to complete backups the plugin marks for cleanup. A project preserved by a restore stays available for manual recovery.
 
 ## Checks
 

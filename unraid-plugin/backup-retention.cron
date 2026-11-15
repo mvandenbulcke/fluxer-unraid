@@ -1,0 +1,3 @@
+# Fluxer maintenance
+0 4 * * * /usr/local/emhttp/plugins/fluxer/scripts/fluxerctl auto_upgrade_run >/dev/null
+15 4 * * * /usr/local/emhttp/plugins/fluxer/scripts/fluxerctl retention_cleanup >/dev/null

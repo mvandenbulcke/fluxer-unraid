@@ -36,6 +36,7 @@ x-fluxer-env: &fluxer-env
   FLUXER_API_HEADERS_TIMEOUT_MS: ${FLUXER_API_HEADERS_TIMEOUT_MS:-}
   FLUXER_API_REQUEST_TIMEOUT_MS: ${FLUXER_API_REQUEST_TIMEOUT_MS:-}
   FLUXER_API_MAX_INFLIGHT_REQUESTS: ${FLUXER_API_MAX_INFLIGHT_REQUESTS:-}
+  FLUXER_API_MAX_CONCURRENT_FORM_UPLOADS: ${FLUXER_API_MAX_CONCURRENT_FORM_UPLOADS:-}
   FLUXER_API_IP_BAN_EXEMPT_IPS: ${FLUXER_API_IP_BAN_EXEMPT_IPS:-}
   FLUXER_IP_BAN_REFRESH_INTERVAL_MS: ${FLUXER_IP_BAN_REFRESH_INTERVAL_MS:-}
   FLUXER_APP_ORIGIN_ALIASES: ${FLUXER_APP_ORIGIN_ALIASES:-}
@@ -63,6 +64,8 @@ x-fluxer-env: &fluxer-env
 
   FLUXER_KV_URL: ${FLUXER_KV_URL:-redis://valkey:6379/0}
   FLUXER_KV_MODE: ${FLUXER_KV_MODE:-}
+  FLUXER_KV_POSTGRES_MAX_CONNECTIONS: ${FLUXER_KV_POSTGRES_MAX_CONNECTIONS:-}
+  FLUXER_KV_POSTGRES_MAX_BYTES: ${FLUXER_KV_POSTGRES_MAX_BYTES:-}
   FLUXER_NATS_URL: ${FLUXER_NATS_URL:-nats://nats:4222}
   FLUXER_NATS_JETSTREAM_URL: ${FLUXER_NATS_JETSTREAM_URL:-${FLUXER_NATS_URL:-nats://nats:4222}}
   FLUXER_NATS_AUTH_TOKEN: ${FLUXER_NATS_AUTH_TOKEN:-}
@@ -123,6 +126,8 @@ x-fluxer-env: &fluxer-env
   FLUXER_LIVEKIT_TURN_SERVERS: ${FLUXER_LIVEKIT_TURN_SERVERS:-[]}
   FLUXER_VOICE_JOIN_ALLOW_PRIVATE_ENDPOINTS: ${FLUXER_VOICE_JOIN_ALLOW_PRIVATE_ENDPOINTS:-}
   FLUXER_VOICE_HEALTH_INTERVAL_MS: ${FLUXER_VOICE_HEALTH_INTERVAL_MS:-}
+  FLUXER_VOICE_PARTICIPANT_SWEEP_ENABLED: ${FLUXER_VOICE_PARTICIPANT_SWEEP_ENABLED:-}
+  FLUXER_VOICE_PARTICIPANT_SWEEP_DRY_RUN: ${FLUXER_VOICE_PARTICIPANT_SWEEP_DRY_RUN:-}
 
   FLUXER_KLIPY_API_KEY: ${FLUXER_KLIPY_API_KEY:-}
   FLUXER_YOUTUBE_API_KEY: ${FLUXER_YOUTUBE_API_KEY:-}
@@ -215,9 +220,10 @@ x-fluxer-env: &fluxer-env
   FLUXER_GATEWAY_RPC_AUTH_TOKEN: ${FLUXER_GATEWAY_RPC_AUTH_TOKEN:-}
   FLUXER_MEDIA_PROXY_SECRET_KEY: ${FLUXER_MEDIA_PROXY_SECRET_KEY:-}
   FLUXER_MEDIA_PROXY_UPLOAD_RELAY_SECRET_BASE64: ${FLUXER_MEDIA_PROXY_UPLOAD_RELAY_SECRET_BASE64:-}
-  FLUXER_MEDIA_PROXY_ATTACHMENT_URL_SECRETS_BASE64: ${FLUXER_MEDIA_PROXY_ATTACHMENT_URL_SECRETS_BASE64:-}
   FLUXER_ADMIN_SECRET_KEY_BASE: ${FLUXER_ADMIN_SECRET_KEY_BASE:-}
   FLUXER_ADMIN_OAUTH_CLIENT_SECRET: ${FLUXER_ADMIN_OAUTH_CLIENT_SECRET:-}
+  FLUXER_ADMIN_SSO_ISSUER: ${FLUXER_ADMIN_SSO_ISSUER:-}
+  FLUXER_ADMIN_SSO_CLIENT_ID: ${FLUXER_ADMIN_SSO_CLIENT_ID:-}
 
   FLUXER_INTERNAL_API_ENDPOINT: http://api:8080
   FLUXER_INTERNAL_MEDIA_PROXY_ENDPOINT: http://media-proxy:8080
@@ -264,15 +270,15 @@ x-fluxer-svc-healthcheck: &fluxer-svc-healthcheck
 services:
   edge:
     <<: *fluxer-service
-    image: ${FLUXER_CADDY_IMAGE:-caddy:2.11-alpine}
+    image: ${FLUXER_CADDY_IMAGE:-caddy:2.11-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0}
     deploy:
       resources:
         limits:
           memory: ${FLUXER_CADDY_MEMORY_LIMIT:-384mb}
     ports:
-      - "${FLUXER_HTTP_PORT:-80}:80"
-      - "${FLUXER_HTTPS_PORT:-443}:443"
-      - "${FLUXER_HTTPS_PORT:-443}:443/udp"
+      - "${FLUXER_EDGE_LISTEN_ADDRESS:+[${FLUXER_EDGE_LISTEN_ADDRESS}]:}${FLUXER_HTTP_PORT:-80}:80"
+      - "${FLUXER_EDGE_LISTEN_ADDRESS:+[${FLUXER_EDGE_LISTEN_ADDRESS}]:}${FLUXER_HTTPS_PORT:-443}:443"
+      - "${FLUXER_EDGE_LISTEN_ADDRESS:+[${FLUXER_EDGE_LISTEN_ADDRESS}]:}${FLUXER_HTTPS_PORT:-443}:443/udp"
     environment:
       FLUXER_EDGE_SITE_ADDRESS: ${FLUXER_EDGE_SITE_ADDRESS:-${FLUXER_CADDY_SITE_ADDRESS:-${FLUXER_PUBLIC_SCHEME:-https}://${FLUXER_DOMAIN:-}}}
       FLUXER_EDGE_TRUSTED_PROXIES: ${FLUXER_EDGE_TRUSTED_PROXIES:-127.0.0.1/32}
@@ -296,7 +302,7 @@ services:
 
   postgres:
     <<: *fluxer-service
-    image: ${FLUXER_POSTGRES_IMAGE:-postgres:16-alpine}
+    image: ${FLUXER_POSTGRES_IMAGE:-postgres:16-alpine@sha256:f377d590e5474681d4d7838635031a2b50647923b7abfa803ce9b5ff35d5c663}
     deploy:
       resources:
         limits:
@@ -343,7 +349,7 @@ services:
 
   valkey:
     <<: *fluxer-service
-    image: ${FLUXER_VALKEY_IMAGE:-valkey/valkey:9.1-alpine}
+    image: ${FLUXER_VALKEY_IMAGE:-valkey/valkey:9.1-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b}
     deploy:
       resources:
         limits:
@@ -360,7 +366,7 @@ services:
 
   nats:
     <<: *fluxer-service
-    image: ${FLUXER_NATS_IMAGE:-nats:2.14-alpine}
+    image: ${FLUXER_NATS_IMAGE:-nats:2.14-alpine@sha256:311da47e2f31c26e99c623cd78d486a1e8ab039c49b32652770bb91a4f70512e}
     deploy:
       resources:
         limits:
@@ -384,7 +390,7 @@ services:
 
   meilisearch:
     <<: *fluxer-service
-    image: ${FLUXER_MEILISEARCH_IMAGE:-getmeili/meilisearch:v1.53}
+    image: ${FLUXER_MEILISEARCH_IMAGE:-getmeili/meilisearch:v1.53@sha256:cf9bb47e8ecf080f0b3ca33f58a2f9d1e382d5479d360541df05e1c49841e4a9}
     deploy:
       resources:
         limits:
@@ -405,7 +411,7 @@ services:
 
   seaweedfs:
     <<: *fluxer-service
-    image: ${FLUXER_SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.47}
+    image: ${FLUXER_SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.52@sha256:57877e32bb90073b37dc109b438ba66e84fd5ed9ced5f5c04f56444ef243ce59}
     deploy:
       resources:
         limits:
@@ -413,6 +419,7 @@ services:
     environment:
       GOMEMLIMIT: ${FLUXER_SEAWEEDFS_GOMEMLIMIT:-1536MiB}
       WEED_MASTER_VOLUME_GROWTH_COPY_1: ${FLUXER_SEAWEEDFS_VOLUME_GROWTH:-1}
+      WEED_FILER_OPTIONS_MAX_FILE_NAME_LENGTH: "1024"
     command: ["server", "-s3", "-s3.iam=false", "-dir=/data", "-master.telemetry=${FLUXER_SEAWEEDFS_TELEMETRY:-false}", "-master.volumeSizeLimitMB=${FLUXER_SEAWEEDFS_VOLUME_SIZE_LIMIT_MB:-1024}", "-master.garbageThreshold=${FLUXER_SEAWEEDFS_GARBAGE_THRESHOLD:-0.1}", "-volume.max=${FLUXER_SEAWEEDFS_VOLUME_MAX:-10000}", "-s3.concurrentFileUploadLimit=${FLUXER_SEAWEEDFS_S3_CONCURRENT_UPLOADS:-5}"]
     volumes:
       - seaweedfs-data:/data
@@ -423,7 +430,7 @@ services:
       start_period: ${FLUXER_SEAWEEDFS_HEALTHCHECK_START_PERIOD:-60s}
 
   seaweedfs-init:
-    image: ${FLUXER_SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.47}
+    image: ${FLUXER_SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.52@sha256:57877e32bb90073b37dc109b438ba66e84fd5ed9ced5f5c04f56444ef243ce59}
     deploy:
       resources:
         limits:
@@ -490,7 +497,7 @@ services:
 
   livekit:
     <<: *fluxer-service
-    image: ${FLUXER_LIVEKIT_IMAGE:-livekit/livekit-server:v1.12.0}
+    image: ${FLUXER_LIVEKIT_IMAGE:-livekit/livekit-server:v1.12.0@sha256:b1281e66e35e8f9749ffbcf0fe6ab4d40d1438aa00f36c2ea7e6975e5e261e2e}
     deploy:
       resources:
         limits:
@@ -523,7 +530,7 @@ services:
 
   api:
     <<: *fluxer-service
-    image: ghcr.io/fluxerapp/fluxer-api@sha256:38f8e2c47dee9b2104ce879725649b37d03d0b2696e60d3dbf620841f4c42553
+    image: ghcr.io/fluxerapp/fluxer-api@sha256:1b7513fd6f77cbe67813b464ea4adb3baa04248bb24122eafa8627476032de8d
     deploy:
       resources:
         limits:
@@ -539,6 +546,7 @@ services:
       FLUXER_POSTGRES_MAX_CONNECTIONS: "${FLUXER_API_POSTGRES_MAX_CONNECTIONS:-25}"
       FLUXER_API_PRESIGNED_ATTACHMENT_UPLOADS_ENABLED: "${FLUXER_API_PRESIGNED_ATTACHMENT_UPLOADS_ENABLED:-true}"
       FLUXER_API_EMBEDDED_WORKER: "${FLUXER_API_EMBEDDED_WORKER:-false}"
+      FLUXER_MEDIA_PROXY_ATTACHMENT_URL_SECRETS_BASE64: ${FLUXER_MEDIA_PROXY_ATTACHMENT_URL_SECRETS_BASE64:-}
     volumes:
       - ./ca:/etc/fluxer/ca:ro
     healthcheck:
@@ -557,7 +565,7 @@ services:
 
   worker:
     <<: *fluxer-service
-    image: ghcr.io/fluxerapp/fluxer-api@sha256:38f8e2c47dee9b2104ce879725649b37d03d0b2696e60d3dbf620841f4c42553
+    image: ghcr.io/fluxerapp/fluxer-api@sha256:1b7513fd6f77cbe67813b464ea4adb3baa04248bb24122eafa8627476032de8d
     deploy:
       replicas: ${FLUXER_WORKER_REPLICAS:-1}
       resources:
@@ -574,6 +582,7 @@ services:
       FLUXER_API_WORKER_ENABLE_CRON_SCHEDULER: "true"
       FLUXER_POSTGRES_MAX_CONNECTIONS: "${FLUXER_WORKER_POSTGRES_MAX_CONNECTIONS:-25}"
       FLUXER_WORKER_POSTGRES_SYNCHRONOUS_COMMIT: "${FLUXER_WORKER_POSTGRES_SYNCHRONOUS_COMMIT:-}"
+      FLUXER_MEDIA_PROXY_ATTACHMENT_URL_SECRETS_BASE64: ${FLUXER_MEDIA_PROXY_ATTACHMENT_URL_SECRETS_BASE64:-}
     volumes:
       - ./ca:/etc/fluxer/ca:ro
     healthcheck:
@@ -591,7 +600,7 @@ services:
 
   gateway:
     <<: *fluxer-service
-    image: ghcr.io/fluxerapp/fluxer-gateway@sha256:4310cceacea2a70eac560e769277ad5cbea1dc376f5a603848a4103347c6db83
+    image: ghcr.io/fluxerapp/fluxer-gateway@sha256:7dd77b07759f8e6769190ec1612d5f38dfc6179ee57676db851d68df4fe66033
     ulimits:
       nofile:
         soft: 65536
@@ -639,7 +648,7 @@ services:
 
   media-proxy:
     <<: *fluxer-service
-    image: ghcr.io/fluxerapp/fluxer-media-proxy@sha256:e04662768403b35ef29b8f916de3d582f2c882d57ada490113b19136f8943a32
+    image: ghcr.io/fluxerapp/fluxer-media-proxy@sha256:0d6564494717f4019ecdca7589184cac25f4c9ef27d0008921aab16a187020d7
     deploy:
       resources:
         limits:
@@ -653,6 +662,7 @@ services:
       FLUXER_MEDIA_PROXY_CORS_MODE: ${FLUXER_MEDIA_PROXY_CORS_MODE:-}
       FLUXER_MEDIA_PROXY_CORS_ALLOWED_ORIGINS: ${FLUXER_MEDIA_PROXY_CORS_ALLOWED_ORIGINS:-${FLUXER_PUBLIC_ORIGIN:-${FLUXER_PUBLIC_SCHEME:-https}://${FLUXER_DOMAIN:-}:${FLUXER_PUBLIC_PORT:-443}}}
       FLUXER_MEDIA_PROXY_ATTACHMENT_SIGNATURE_MODE: ${FLUXER_MEDIA_PROXY_ATTACHMENT_SIGNATURE_MODE:-}
+      FLUXER_MEDIA_PROXY_ATTACHMENT_URL_SECRETS_BASE64: ${FLUXER_MEDIA_PROXY_ATTACHMENT_URL_SECRETS_BASE64:-}
       FLUXER_MEDIA_PROXY_READ_ONLY: ${FLUXER_MEDIA_PROXY_READ_ONLY:-}
       FLUXER_MEDIA_PROXY_NSFW_THRESHOLD: ${FLUXER_MEDIA_PROXY_NSFW_THRESHOLD:-}
       FLUXER_NSFW_SERVICE_ENDPOINT: ${FLUXER_NSFW_SERVICE_ENDPOINT:-}
@@ -689,7 +699,7 @@ services:
 
   push:
     <<: *fluxer-service
-    image: ghcr.io/fluxerapp/fluxer-push@sha256:56f3329efe28e39306eacbceaf4260050ea88eafdce4c2b71607ed112e85d446
+    image: ghcr.io/fluxerapp/fluxer-push@sha256:1c5cf0a9e4d7231b80925cd375ee2461a058a4937859d7f8239eb7f753ca859f
     deploy:
       resources:
         limits:
@@ -723,7 +733,7 @@ services:
 
   static-proxy:
     <<: *fluxer-service
-    image: ghcr.io/fluxerapp/fluxer-static@sha256:c2743685868f73289d87a056988f9692630252c933119e1d282d89f348086a46
+    image: ghcr.io/fluxerapp/fluxer-static@sha256:ae200756b224ea1692935f548c74a39162c98f9933af728ae117208c639cdecd
     deploy:
       resources:
         limits:
@@ -734,7 +744,7 @@ services:
 
   app-proxy:
     <<: *fluxer-service
-    image: ghcr.io/fluxerapp/fluxer-app-proxy-self-hosted@sha256:c73c6ee734e97d23f722670883fa0d6000431add98d499a3cb96f2ce5c0e9b24
+    image: ghcr.io/fluxerapp/fluxer-app-proxy-self-hosted@sha256:70623b663e38d38e5ba8dd8bf693cc7fc36ed2a759d6ae17478cb09840dfeb9d
     deploy:
       resources:
         limits:
@@ -785,7 +795,7 @@ services:
   snowflakes:
     <<: *fluxer-service
     stop_grace_period: 30s
-    image: ghcr.io/fluxerapp/fluxer-snowflakes@sha256:0aa5680c2219254438b84b67faf94f51c0be2041958c882ac4792bdb632f8761
+    image: ghcr.io/fluxerapp/fluxer-snowflakes@sha256:4a98227016bc1f26575f5faca678bf8f28f586d57d31b9b7c7a68bd4c6e18a9d
     deploy:
       resources:
         limits:
@@ -794,6 +804,7 @@ services:
       <<: *fluxer-rust-env
       FLUXER_SVC_NAME: snowflakes
       FLUXER_SVC_MODE: combined
+      FLUXER_SNOWFLAKES_WORKER_GUARD: "true"
     healthcheck: *fluxer-svc-healthcheck
     depends_on:
       nats: {condition: service_healthy}
@@ -801,7 +812,7 @@ services:
   users:
     <<: *fluxer-service
     stop_grace_period: 30s
-    image: ghcr.io/fluxerapp/fluxer-users@sha256:3d56920b4305ee553b040174354718f336647323bc3ad3beac407e7db6845ec1
+    image: ghcr.io/fluxerapp/fluxer-users@sha256:744d2dabdcd9641b1dffee3386a08aad5f78dded7c073ff01450fe059fb6ffb6
     deploy:
       resources:
         limits:
@@ -819,7 +830,7 @@ services:
   gifs:
     <<: *fluxer-service
     stop_grace_period: 30s
-    image: ghcr.io/fluxerapp/fluxer-gifs@sha256:ab5565c1c5c9a14c3c05b294e3233eb14de5979455653dfa84c4a8b95df2ac3e
+    image: ghcr.io/fluxerapp/fluxer-gifs@sha256:7779a402eea64750e24e62006bb479e60a09fcd40999252b87147f0759bbb143
     deploy:
       resources:
         limits:
@@ -836,7 +847,7 @@ services:
   messages:
     <<: *fluxer-service
     stop_grace_period: 30s
-    image: ghcr.io/fluxerapp/fluxer-messages@sha256:cc648669786f3a1b6d34a0d0a6e2c7c7412a7317c0bfd35030ecf4ab59db7f53
+    image: ghcr.io/fluxerapp/fluxer-messages@sha256:93a0dd012433b08a46cbaf0d02a829060ee87d4b30e3caae4c74a17209fe7b56
     deploy:
       resources:
         limits:
@@ -854,7 +865,7 @@ services:
   unfurl:
     <<: *fluxer-service
     stop_grace_period: 30s
-    image: ghcr.io/fluxerapp/fluxer-unfurl@sha256:8dbb0becc371e7313ed891dfd35b969d3ae41f275c175ad5b406ad792780820f
+    image: ghcr.io/fluxerapp/fluxer-unfurl@sha256:88b0c48b105f1eeecf61ae41b4c478227fa1ac8068fa2f36e40ab1b1f5ccc2b4
     deploy:
       resources:
         limits:
@@ -871,7 +882,7 @@ services:
 
   admin:
     <<: *fluxer-service
-    image: ghcr.io/fluxerapp/fluxer-admin@sha256:c3289590711ff15aa9f39c2cea042d35dd22f2f416f2e974f7f79f949a2b88f3
+    image: ghcr.io/fluxerapp/fluxer-admin@sha256:ee84679d12bbac6fb926d569031e5b1e3e576f7c8e1ac80c7a500581f602f0d2
     deploy:
       resources:
         limits:
@@ -883,6 +894,9 @@ services:
       FLUXER_API_ENDPOINT: http://api:8080
       FLUXER_API_PUBLIC_ENDPOINT: ${FLUXER_API_ENDPOINT:-}
       FLUXER_STATIC_CDN_ENDPOINT: ${FLUXER_STATIC_CDN_ENDPOINT:-${FLUXER_PUBLIC_ORIGIN:-${FLUXER_PUBLIC_SCHEME:-https}://${FLUXER_DOMAIN:-}}}
+      FLUXER_ADMIN_SSO_CLIENT_SECRET: ${FLUXER_ADMIN_SSO_CLIENT_SECRET:-}
+      FLUXER_ADMIN_SSO_DISPLAY_NAME: ${FLUXER_ADMIN_SSO_DISPLAY_NAME:-}
+      FLUXER_ADMIN_SSO_ONLY: ${FLUXER_ADMIN_SSO_ONLY:-}
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf \"GET /_health HTTP/1.0\\r\\n\\r\\n\" >&3 && head -n 1 <&3 | grep -q \" 200 \"'"]
       <<: *fluxer-app-healthcheck

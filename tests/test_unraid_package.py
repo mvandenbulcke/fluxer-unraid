@@ -46,6 +46,10 @@ FIXTURE_FILES = {
     "UPSTREAM.json": b'{"release":"fixture"}\n',
     "voice/voice.compose.yml": b"services: {}\n",
     "unraid-plugin/Fluxer.page": b'Menu="Settings"\nTitle="Fluxer"\n',
+    "unraid-plugin/backup-retention.cron": (
+        b"0 4 * * * /usr/local/emhttp/plugins/fluxer/scripts/fluxerctl auto_upgrade_run >/dev/null\n"
+        b"15 4 * * * /usr/local/emhttp/plugins/fluxer/scripts/fluxerctl retention_cleanup >/dev/null\n"
+    ),
     "unraid-plugin/include/control.php": b"<?php\nexit;\n",
     "unraid-plugin/scripts/fluxerctl": b"#!/bin/bash\nexit 0\n",
     "unraid-plugin/event/docker_started": b"#!/bin/bash\nexit 0\n",
@@ -171,6 +175,28 @@ class UnraidPackageTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(VERSION, result.stderr)
         self.assertFalse(self.output.exists() and any(self.output.iterdir()))
+
+    def test_upgrade_manifest_must_match_the_bundled_files(self):
+        self.write_source("UPSTREAM.json", b'{"release":"2026.1114.195738"}\n')
+        upgrade_paths = (
+            "docker-compose.yml", "docker-compose.proxy.yml", "compose.unraid.yml",
+            "compose.ingress.yml", "compose.voice-direct.yml", "Caddyfile", ".env.example",
+            "UPSTREAM.json",
+        )
+        rows = ["2026.1102.205049\t2026.1114.195738"]
+        for name in upgrade_paths:
+            digest = hashlib.sha256((self.source / name).read_bytes()).hexdigest()
+            rows.append(f"{name}\t{digest}\t{digest}")
+        manifest = ("\n".join(rows) + "\n").encode()
+        self.write_source("unraid-plugin/upgrade.tsv", manifest)
+        self.build_successfully()
+        with tarfile.open(self.output / ARCHIVE_NAME, "r:gz") as archive:
+            self.assertEqual(archive.extractfile(str(PREFIX / "upgrade.tsv")).read(), manifest)
+        self.write_source("Caddyfile", b":8080 { respond Changed }\n")
+        result = self.build(self.base / "rejected-upgrade")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Invalid upgrade checksum: Caddyfile", result.stderr)
+        self.assertFalse((self.base / "rejected-upgrade").exists())
 
     def test_archive_installs_executable_scripts_and_readable_configuration(self):
         self.build_successfully()

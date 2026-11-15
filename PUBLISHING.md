@@ -12,6 +12,16 @@ Beta `2026.11.03.5` installed on Unraid 7.3.4. The Settings page and 21 containe
 
 Beta `2026.11.03.6` is public. It adds documentation, package checks, and catalog metadata. [CHANGELOG.md](CHANGELOG.md) records those changes. It keeps the runtime behavior from beta `2026.11.03.5`. The management update installed on Unraid 7.3.4. Its Settings page and 21 container health checks passed. Release builds and Apps submission use the steps below. The GitHub release page records the current public version.
 
+## Prepare a Fluxer upgrade
+
+1. Get the target Compose archive from Fluxer. Check its SHA256 against the release asset metadata.
+2. Update the upstream deployment files and `UPSTREAM.json`. Keep the local overrides separate.
+3. In `unraid-plugin/upgrade.tsv`, put the source and target releases on the first line, separated by a tab.
+4. List each deployment path, source SHA256, and target SHA256, separated by tabs. Use the files from the shipped source release to get its checksums.
+5. Test the upgrade and backup recovery on a separate Unraid system before publishing.
+
+The builder checks the target files against the manifest. The guided upgrade checks the installed files before it stops the stack. If the layout or source release needs manual steps, document those steps before publishing.
+
 ## Beta release
 
 1. Add the matching `## YYYY.MM.DD.N` section to [CHANGELOG.md](CHANGELOG.md) before a release build or tag.
@@ -63,6 +73,6 @@ The [naming policy](https://unraid.net/policies) requires the trademark attribut
 
 Use [GitHub Issues](https://github.com/mvandenbulcke/fluxer-unraid/issues) for package support. Request versions, reproduction steps, service health, and short redacted log excerpts. Never request `.env`, token files, setup keys, full Compose output, or Docker inspect output.
 
-Full Fluxer release upgrades remain manual. Use the [manual deployment guide](docs/manual-deployment.md) and compare the upstream Compose changes before an upgrade. A plugin update does not perform a full Fluxer upgrade or database migration.
+Installing a plugin package makes its bundled release available. Use **Upgrade Fluxer** to apply a supported release pair. See the [manual deployment guide](docs/manual-deployment.md#storage-and-updates) for other deployments.
 
 Plugin removal keeps application data and containers. Stop Fluxer before removing its management plugin.

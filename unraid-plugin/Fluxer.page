@@ -49,6 +49,41 @@ Markdown="false"
   </dd></dl>
   <pre id="fluxer-status" aria-live="polite">Read the status to check Fluxer.</pre>
   <p id="fluxer-polling" hidden>The status refreshes every 5 seconds while an action runs.</p>
+  <div id="fluxer-upgrade" hidden>
+    <table class="unraid"><thead><tr><td>Application upgrade</td></tr></thead></table>
+    <dl><dt>Installed Fluxer release:</dt><dd><code id="fluxer-installed-release"></code></dd></dl>
+    <dl><dt>Bundled Fluxer release:</dt><dd><code id="fluxer-bundled-release"></code></dd></dl>
+    <p id="fluxer-upgrade-message" role="status"></p>
+    <dl id="fluxer-upgrade-backup-row" hidden><dt>Deployment backup:</dt><dd><code id="fluxer-upgrade-backup"></code></dd></dl>
+    <dl><dt></dt><dd><input id="fluxer-upgrade-button" type="button" value="Upgrade Fluxer" data-fluxer-action disabled></dd></dl>
+  </div>
+  <form id="fluxer-auto-upgrade" hidden>
+    <table class="unraid"><thead><tr><td>Automatic upgrades</td></tr></thead></table>
+    <dl><dt></dt><dd>
+      <label><input id="fluxer-auto-upgrade-enabled" type="checkbox" disabled> Enable automatic upgrades</label>
+      <p>Automatic upgrades are off by default. Fluxer checks for a supported upgrade to the bundled release every day at 04:00 NAS time.</p>
+      <p>The upgrade saves a local backup. Fluxer is offline during the upgrade.</p>
+      <p>The check skips stopped instances and instances that need recovery. A manual restore turns this setting off.</p>
+    </dd></dl>
+    <dl><dt>Last attempted release</dt><dd><code id="fluxer-auto-upgrade-attempt"></code></dd></dl>
+    <dl><dt></dt><dd><input id="fluxer-auto-upgrade-save" type="submit" value="Save automatic upgrades" data-fluxer-action disabled></dd></dl>
+  </form>
+  <div id="fluxer-restore" hidden>
+    <table class="unraid"><thead><tr><td>Restore from backup</td></tr></thead></table>
+    <p id="fluxer-restore-message" role="status"></p>
+    <dl><dt><label for="fluxer-restore-select">Backup:</label></dt><dd><select id="fluxer-restore-select" disabled></select></dd></dl>
+    <dl><dt></dt><dd><input id="fluxer-restore-button" type="button" value="Restore backup" data-fluxer-action disabled></dd></dl>
+    <dl id="fluxer-restore-preserved-row" hidden><dt>Previous project:</dt><dd><code id="fluxer-restore-preserved"></code></dd></dl>
+  </div>
+  <form id="fluxer-retention" hidden>
+    <table class="unraid"><thead><tr><td>Backup retention</td></tr></thead></table>
+    <dl><dt><label for="fluxer-retention-days">Retention period (days):</label></dt><dd>
+      <input id="fluxer-retention-days" name="days" type="number" min="0" max="3650" step="1" required disabled>
+      <p>Use 0 to keep all backups. Cleanup runs daily at 04:15 in the NAS time zone.</p>
+      <p>Cleanup keeps the newest complete backup, older backups without a completion record, and projects preserved by a restore.</p>
+    </dd></dl>
+    <dl><dt></dt><dd><input id="fluxer-retention-save" type="submit" value="Save retention" data-fluxer-action disabled></dd></dl>
+  </form>
   <dl><dt></dt><dd><input id="fluxer-show-token" type="button" value="Show setup token" disabled></dd></dl>
   <dl id="fluxer-setup-token-row" hidden><dt><label for="fluxer-setup-token">Setup token:</label></dt><dd><input id="fluxer-setup-token" type="text" readonly autocomplete="off" spellcheck="false"><p>Use this token to create the first administrator account in Fluxer.</p></dd></dl>
 </div>
@@ -67,29 +102,70 @@ Markdown="false"
   var root = document.getElementById('fluxer-manager');
   var message = document.getElementById('fluxer-message');
   var output = document.getElementById('fluxer-status');
+  var autoUpgradeForm = document.getElementById('fluxer-auto-upgrade');
+  var autoUpgradeInput = document.getElementById('fluxer-auto-upgrade-enabled');
+  var autoUpgradeSave = document.getElementById('fluxer-auto-upgrade-save');
+  var restoreSelect = document.getElementById('fluxer-restore-select');
+  var restoreButton = document.getElementById('fluxer-restore-button');
+  var retentionForm = document.getElementById('fluxer-retention');
+  var retentionInput = document.getElementById('fluxer-retention-days');
+  var retentionSave = document.getElementById('fluxer-retention-save');
+  var setupToken = document.getElementById('fluxer-setup-token');
+  var setupTokenRow = document.getElementById('fluxer-setup-token-row');
   var configured = false;
   var ready = false;
+  var arrayStarted = false;
+  var retentionDays = null;
+  var retentionEdited = false;
+  var autoUpgradeEnabled = null;
+  var autoUpgradeEdited = false;
   var busy = false;
+  var submitting = false;
+  var statusRead = 0;
+  var statusError = false;
+  var upgrade = {};
+  var restore = {};
+  var operationRequest = null;
   var pollTimer = null;
 
   function text(value) { return typeof value === 'string' ? value : ''; }
   function showMessage(value, error) {
+    statusError = false;
     message.textContent = value;
     message.className = error ? 'red-text' : '';
   }
+  function needsRecovery(info) {
+    return info.phase === 'recovery' || info.state === 'interrupted';
+  }
+  function clearSetupToken() {
+    setupToken.value = '';
+    setupTokenRow.hidden = true;
+  }
+  function setRestoreControls() {
+    restoreSelect.disabled = busy || !ready || restore.available !== true;
+    restoreButton.disabled = restoreSelect.disabled || !restoreSelect.value;
+  }
   function setBusy(value) {
     busy = value;
+    var recovery = needsRecovery(upgrade) || needsRecovery(restore);
     root.querySelectorAll('[data-fluxer-action]').forEach(function (button) {
       button.disabled = value;
     });
-    document.getElementById('fluxer-start').disabled = value || !configured || !ready;
+    document.getElementById('fluxer-start').disabled = value || !configured || !ready || recovery;
     document.getElementById('fluxer-stop').disabled = value || !configured;
-    document.getElementById('fluxer-save').disabled = value || !ready;
-    document.getElementById('fluxer-show-token').disabled = !configured;
+    document.getElementById('fluxer-save').disabled = value || !ready || recovery;
+    root.querySelector('#fluxer-tokens input[type="submit"]').disabled = value || recovery;
+    document.getElementById('fluxer-upgrade-button').disabled =
+      value || !configured || !ready || recovery || upgrade.available !== true || !text(upgrade.target);
+    setRestoreControls();
+    retentionInput.disabled = value || !arrayStarted || retentionDays === null;
+    retentionSave.disabled = retentionInput.disabled;
+    autoUpgradeInput.disabled = value || !arrayStarted || autoUpgradeEnabled === null;
+    autoUpgradeSave.disabled = autoUpgradeInput.disabled;
+    document.getElementById('fluxer-show-token').disabled = value || !configured;
     document.getElementById('fluxer-polling').hidden = !value;
   }
-  async function request(action, form) {
-    var fields = form ? new URLSearchParams(new FormData(form)) : new URLSearchParams();
+  async function request(action, fields = new URLSearchParams()) {
     fields.set('action', action);
     fields.set('csrf_token', csrf_token);
     var response = await fetch('/plugins/fluxer/include/control.php', {
@@ -112,15 +188,68 @@ Markdown="false"
   }
   function schedulePoll() {
     stopPolling();
-    pollTimer = setTimeout(function () { refreshStatus(true); }, 5000);
+    pollTimer = setTimeout(refreshStatus, 5000);
   }
-  async function refreshStatus(polling) {
+  function renderOperationMessage(id, info) {
+    var element = document.getElementById(id);
+    var value = text(info.message);
+    if (element.textContent !== value) {
+      element.textContent = value;
+    }
+    element.className = info.state === 'failed' || info.state === 'interrupted' ? 'red-text' : '';
+  }
+  function renderUpgrade() {
+    document.getElementById('fluxer-upgrade').hidden = !configured && !needsRecovery(upgrade);
+    document.getElementById('fluxer-installed-release').textContent = text(upgrade.installed) || 'Unknown';
+    document.getElementById('fluxer-bundled-release').textContent = text(upgrade.target) || 'Unknown';
+    renderOperationMessage('fluxer-upgrade-message', upgrade);
+    var backup = text(upgrade.backup);
+    document.getElementById('fluxer-upgrade-backup').textContent = backup;
+    document.getElementById('fluxer-upgrade-backup-row').hidden = !backup;
+  }
+  function renderRestore() {
+    var backups = restore.backups || [];
+    document.getElementById('fluxer-restore').hidden =
+      !configured && backups.length === 0 && !restore.request_id && !needsRecovery(restore) && !needsRecovery(upgrade);
+    renderOperationMessage('fluxer-restore-message', restore);
+    var preserved = text(restore.preserved);
+    document.getElementById('fluxer-restore-preserved').textContent = preserved;
+    document.getElementById('fluxer-restore-preserved-row').hidden = !preserved;
+    var selected = restoreSelect.value;
+    var options = backups.map(function (backup) {
+      return new Option('Fluxer ' + backup.release + ' · ' + backup.created_at, backup.id);
+    });
+    restoreSelect.replaceChildren(new Option('Select a backup', ''), ...options);
+    restoreSelect.value = backups.some(function (backup) { return backup.id === selected; }) ? selected : '';
+  }
+  async function refreshStatus() {
+    if (submitting) { return; }
+    var read = ++statusRead;
     try {
       var data = await request('status');
+      if (read !== statusRead) { return; }
+      if (statusError) { showMessage('', false); }
       configured = data.configured === true;
       var prerequisites = data.prerequisites || {};
-      ready = prerequisites.compose === true && prerequisites.array_started === true;
-      document.getElementById('fluxer-configure').hidden = configured;
+      arrayStarted = prerequisites.array_started === true;
+      ready = prerequisites.compose === true && arrayStarted;
+      upgrade = data.upgrade || {};
+      var restoreId = restore.request_id;
+      restore = data.restore || {};
+      var autoUpgrade = data.auto_upgrade || {};
+      autoUpgradeEnabled = typeof autoUpgrade.enabled === 'boolean' ? autoUpgrade.enabled : null;
+      var lastAttempt = text(autoUpgrade.last_attempt);
+      autoUpgradeForm.hidden = !configured && autoUpgradeEnabled !== true && !lastAttempt;
+      if (!autoUpgradeEdited && autoUpgradeEnabled !== null) { autoUpgradeInput.checked = autoUpgradeEnabled; }
+      document.getElementById('fluxer-auto-upgrade-attempt').textContent =
+        autoUpgradeEnabled === null ? 'Unavailable' : lastAttempt || 'None';
+      retentionDays = data.retention && Number.isInteger(data.retention.days) ? data.retention.days : null;
+      retentionForm.hidden = !configured && (restore.backups || []).length === 0;
+      if (!retentionEdited && retentionDays !== null) { retentionInput.value = String(retentionDays); }
+      if (!configured || restore.request_id !== restoreId) { clearSetupToken(); }
+      renderUpgrade();
+      renderRestore();
+      document.getElementById('fluxer-configure').hidden = configured || needsRecovery(upgrade) || needsRecovery(restore);
       document.getElementById('fluxer-tokens').hidden = !configured;
       document.getElementById('fluxer-tunnel-route').hidden = !configured;
       document.getElementById('fluxer-prerequisites').hidden = ready;
@@ -134,28 +263,46 @@ Markdown="false"
         document.getElementById('fluxer-route-domain').textContent = data.url.slice(8);
         document.getElementById('fluxer-route-origin').textContent = data.url.slice(8);
       } else { open.hidden = true; }
-      var pending = data.pending === true;
+      if (operationRequest !== null) {
+        var result = data[operationRequest.action] || {};
+        if (result.request_id === operationRequest.id) {
+          operationRequest = null;
+          showMessage('', false);
+        } else if (Date.now() >= operationRequest.deadline) {
+          operationRequest = null;
+          showMessage('The controller did not report a result. Refresh the status and check the controller log.', true);
+        }
+      }
+      var pending = data.pending === true || operationRequest !== null;
       setBusy(pending);
       if (pending) { schedulePoll(); }
       else { stopPolling(); }
     } catch (error) {
-      stopPolling();
-      setBusy(false);
+      if (read !== statusRead) { return; }
       showMessage(error.message, true);
+      statusError = true;
+      if (busy) { schedulePoll(); }
     }
   }
   async function save(form, action) {
+    if (busy) { return; }
+    var fields = new URLSearchParams(new FormData(form));
+    if (action === 'auto_upgrade_set') { fields.set('enabled', autoUpgradeInput.checked ? 'on' : 'off'); }
+    submitting = true;
+    statusRead++;
     setBusy(true);
     showMessage('Save requested.', false);
     try {
-      var data = await request(action, form);
+      var data = await request(action, fields);
+      if (action === 'retention_set') { retentionEdited = false; }
+      if (action === 'auto_upgrade_set') { autoUpgradeEdited = false; }
       form.querySelectorAll('input[type="password"]').forEach(function (input) { input.value = ''; });
       showMessage(text(data.message), false);
-      await refreshStatus(false);
     } catch (error) {
-      setBusy(false);
       showMessage(error.message, true);
-      await refreshStatus(false);
+    } finally {
+      submitting = false;
+      await refreshStatus();
     }
   }
   document.getElementById('fluxer-configure').addEventListener('submit', function (event) {
@@ -166,29 +313,72 @@ Markdown="false"
     event.preventDefault();
     save(event.currentTarget, 'save_tokens');
   });
-  async function operate(action) {
+  retentionInput.addEventListener('input', function () { retentionEdited = true; });
+  retentionForm.addEventListener('submit', function (event) {
+    event.preventDefault();
+    if (!retentionSave.disabled) { save(event.currentTarget, 'retention_set'); }
+  });
+  autoUpgradeInput.addEventListener('change', function () { autoUpgradeEdited = true; });
+  autoUpgradeForm.addEventListener('submit', function (event) {
+    event.preventDefault();
+    if (!autoUpgradeSave.disabled) { save(event.currentTarget, 'auto_upgrade_set'); }
+  });
+  async function operate(action, fields) {
+    if (busy) { return; }
+    submitting = true;
+    statusRead++;
     setBusy(true);
-    showMessage(action === 'start' ? 'Start requested.' : 'Stop requested.', false);
+    if (action === 'restore') { clearSetupToken(); }
+    var requested = {
+      start: 'Start requested.', stop: 'Stop requested.', upgrade: 'Upgrade requested.', restore: 'Restore requested.'
+    };
+    showMessage(requested[action], false);
     try {
-      var data = await request(action);
+      var data = await request(action, fields);
+      if (action === 'upgrade' || action === 'restore') {
+        operationRequest = { action: action, id: data.request_id, deadline: Date.now() + 30000 };
+      }
       showMessage(text(data.message), false);
-      schedulePoll();
     } catch (error) {
-      setBusy(false);
       showMessage(error.message, true);
+    } finally {
+      submitting = false;
+      schedulePoll();
     }
   }
   document.getElementById('fluxer-start').addEventListener('click', function () { operate('start'); });
   document.getElementById('fluxer-stop').addEventListener('click', function () { operate('stop'); });
-  document.getElementById('fluxer-refresh').addEventListener('click', function () { refreshStatus(false); });
+  document.getElementById('fluxer-refresh').addEventListener('click', refreshStatus);
+  document.getElementById('fluxer-upgrade-button').addEventListener('click', function () {
+    var target = text(upgrade.target);
+    if (busy || !target || upgrade.available !== true) { return; }
+    var prompt = 'Upgrade Fluxer to ' + target + '?\n\n' +
+      'Fluxer will be offline while the upgrade runs. ' +
+      'The upgrade saves a local copy of Fluxer data and settings.\n\n' +
+      'Keep a separate backup on another disk before you continue.';
+    if (window.confirm(prompt)) { operate('upgrade', new URLSearchParams({ target: target })); }
+  });
+  restoreSelect.addEventListener('change', setRestoreControls);
+  restoreButton.addEventListener('click', function () {
+    if (restoreButton.disabled) { return; }
+    var backup = restore.backups.find(function (option) { return option.id === restoreSelect.value; });
+    if (!backup) { return; }
+    var prompt = 'Restore this Fluxer backup?\n\nFluxer ' + backup.release + ' · ' + backup.created_at + '\n\n' +
+      'Fluxer will be offline during the restore. ' +
+      'The restore removes data created after this backup from the active instance. ' +
+      'If the current project exists, the restore keeps it in a separate folder.';
+    if (window.confirm(prompt)) { operate('restore', new URLSearchParams({ backup_id: backup.id })); }
+  });
   document.getElementById('fluxer-show-token').addEventListener('click', async function () {
+    var restoreId = restore.request_id;
     try {
       var data = await request('setup_token');
-      document.getElementById('fluxer-setup-token').value = text(data.token);
-      document.getElementById('fluxer-setup-token-row').hidden = false;
+      if (busy || !configured || restore.request_id !== restoreId) { return; }
+      setupToken.value = text(data.token);
+      setupTokenRow.hidden = false;
     } catch (error) { showMessage(error.message, true); }
   });
   window.addEventListener('pagehide', stopPolling);
-  refreshStatus(false);
+  refreshStatus();
 }());
 </script>

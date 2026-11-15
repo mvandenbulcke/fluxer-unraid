@@ -9,9 +9,13 @@ action=${1:-status}
 shift || true
 
 fail() { printf '%s\n' "$*" >&2; exit 1; }
+source "$(dirname -- "${BASH_SOURCE[0]}")/upgrade.sh"
+source "$(dirname -- "${BASH_SOURCE[0]}")/restore.sh"
+source "$(dirname -- "${BASH_SOURCE[0]}")/retention.sh"
+source "$(dirname -- "${BASH_SOURCE[0]}")/auto-upgrade.sh"
 env_value() {
-  local line value
-  [[ -f "$project_dir/.env" ]] || return 1
+  local line value env_file=${2:-$project_dir/.env}
+  [[ -f "$env_file" ]] || return 1
   while IFS= read -r line || [[ -n "$line" ]]; do
     if [[ "$line" == "$1="* ]]; then
       value=${line#*=}
@@ -20,13 +24,13 @@ env_value() {
       printf '%s' "$value"
       return 0
     fi
-  done < "$project_dir/.env"
+  done < "$env_file"
   return 1
 }
 compose_available() { command -v docker >/dev/null && docker compose version >/dev/null 2>&1; }
 nas_address_ready() {
   local expected addresses
-  expected=$(env_value FLUXER_NAS_IP) || return 1
+  expected=$(env_value FLUXER_NAS_IP "${1:-$project_dir/.env}") || return 1
   [[ -n "$expected" ]] || return 1
   command -v ip >/dev/null || return 1
   addresses=$(ip -4 -o addr show 2>/dev/null) || return 1
@@ -45,11 +49,20 @@ check_runtime() {
   version=$(docker version --format '{{.Server.Version}}' 2>/dev/null) || fail 'Start Docker from Unraid Settings before you start Fluxer.'
   major=${version%%.*}
   [[ "$major" =~ ^[0-9]+$ ]] && (( major >= 25 )) || fail 'Docker Engine 25 or newer is required.'
-  nas_address_ready || fail 'The saved LAN address must belong to this NAS.'
+  nas_address_ready "${1:-$project_dir/.env}" || fail 'The saved LAN address must belong to this NAS.'
+}
+project_real_path() {
+  local parent
+  if [[ -d "$project_dir" ]]; then
+    (cd -- "$project_dir" && pwd -P)
+    return
+  fi
+  parent=$(cd -- "$(dirname -- "$project_dir")" && pwd -P) || return 1
+  printf '%s/%s' "$parent" "${project_dir##*/}"
 }
 check_project_ownership() {
   local owner expected owners
-  expected=$(cd "$project_dir" && pwd -P)
+  expected=$(project_real_path) || fail 'Cannot check the project folder.'
   owners=$(docker ps -a --filter label=com.docker.compose.project=fluxer --format '{{.Label "com.docker.compose.project.working_dir"}}') || fail 'Cannot check the existing Docker projects.'
   while IFS= read -r owner; do
     [[ -z "$owner" || "$owner" == "$expected" || "$owner" == "$project_dir" ]] || fail 'Another Fluxer Compose project exists. Keep its data and settings. Use its original project folder.'
@@ -101,6 +114,7 @@ case "$action" in
     ;;
   autostart)
     [[ $# == 0 ]] || fail 'Autostart takes no arguments.'
+    check_upgrade_pending
     [[ -f "$project_dir/.unraid-autostart" && -f "$project_dir/.env" ]] || exit 0
     for (( attempt=0; attempt<40; attempt++ )); do
       [[ -f "$project_dir/.unraid-autostart" ]] || exit 0
@@ -112,6 +126,7 @@ case "$action" in
     ;;
   check)
     [[ $# == 0 ]] || fail 'Check takes no arguments.'
+    check_upgrade_pending
     [[ -f "$project_dir/.env" ]] || fail 'Configure Fluxer before you start it.'
     check_runtime
     check_project_ownership
@@ -122,17 +137,41 @@ case "$action" in
     printf '%s\n' 'Fluxer is ready to start.'
     exit 0
     ;;
-  prepare|start|stop) ;;
-  *) fail 'Use prepare, check, start, stop, status, or autostart.' ;;
+  upgrade_info)
+    [[ $# == 0 ]] || fail 'Upgrade details take no arguments.'
+    upgrade_info
+    exit 0
+    ;;
+  restore_info)
+    [[ $# == 0 ]] || fail 'Restore details take no arguments.'
+    restore_info
+    exit 0
+    ;;
+  retention_info)
+    [[ $# == 0 ]] || fail 'Retention details take no arguments.'
+    retention_info
+    exit 0
+    ;;
+  auto_upgrade_info)
+    [[ $# == 0 ]] || fail 'Automatic upgrade details take no arguments.'
+    auto_upgrade_info
+    exit 0
+    ;;
+  prepare|start|stop|upgrade|restore|retention_set|retention_cleanup|auto_upgrade_set|auto_upgrade_run) ;;
+  *) fail 'Use prepare, check, start, stop, status, autostart, upgrade_info, upgrade, restore_info, restore, retention_info, retention_set, retention_cleanup, auto_upgrade_info, auto_upgrade_set, or auto_upgrade_run.' ;;
 esac
 
 mkdir -p -- "$(dirname -- "$lock_file")"
 exec 9>"$lock_file"
-flock -n 9 || fail 'Another Fluxer operation is in progress.'
+if ! flock -n 9; then
+  case "$action" in retention_cleanup|auto_upgrade_run) exit 0 ;; esac
+  fail 'Another Fluxer operation is in progress.'
+fi
 
 case "$action" in
   prepare)
     [[ $# == 3 ]] || fail 'Prepare needs the domain, certificate email, and NAS LAN address.'
+    check_upgrade_pending
     [[ ! -e "$project_dir/.env" ]] || fail 'Fluxer already has settings. Keep the existing application keys.'
     [[ -f "$plugin_dir/bundle/setup.sh" ]] || fail 'The deployment bundle is missing. Reinstall the Fluxer plugin.'
     if [[ "$project_dir" == /mnt/user/appdata/fluxer ]]; then
@@ -146,6 +185,7 @@ case "$action" in
     ;;
   start)
     [[ $# == 0 ]] || fail 'Start takes no arguments.'
+    check_upgrade_pending
     [[ -f "$project_dir/.env" ]] || fail 'Configure Fluxer before you start it.'
     check_runtime
     check_project_ownership
@@ -169,5 +209,29 @@ case "$action" in
     rm -f -- .unraid-autostart
     docker compose stop
     printf '%s\n' 'Fluxer stopped. Its data and settings remain in appdata.'
+    ;;
+  upgrade)
+    [[ $# == 1 || $# == 2 ]] || fail 'Upgrade needs the expected bundled release.'
+    run_upgrade "$@"
+    ;;
+  restore)
+    [[ $# == 1 || $# == 2 ]] || fail 'Restore needs a backup ID.'
+    run_restore "$@"
+    ;;
+  retention_set)
+    [[ $# == 1 ]] || fail 'Retention settings need a period in days.'
+    retention_set "$1"
+    ;;
+  retention_cleanup)
+    [[ $# == 0 ]] || fail 'Retention cleanup takes no arguments.'
+    retention_cleanup
+    ;;
+  auto_upgrade_set)
+    [[ $# == 1 ]] || fail 'Automatic upgrade settings need on or off.'
+    auto_upgrade_set "$1"
+    ;;
+  auto_upgrade_run)
+    [[ $# == 0 ]] || fail 'Scheduled upgrades take no arguments.'
+    auto_upgrade_run
     ;;
 esac

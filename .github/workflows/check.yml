@@ -15,7 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Check shell scripts
-        run: bash -n setup.sh set-tokens.sh start.sh unraid-plugin/scripts/fluxerctl unraid-plugin/event/docker_started
+        run: |
+          for script in setup.sh set-tokens.sh start.sh unraid-plugin/scripts/* unraid-plugin/event/docker_started; do
+            bash -n "$script"
+          done
       - name: Check PHP syntax
         run: php -l unraid-plugin/include/control.php
       - name: Check the package and controller

@@ -74,7 +74,7 @@ Certificate renewal through the VPN alone remains untested. Check the renewal re
 
 Back up the project before merging files. Compare `compose.ingress.yml` in the project with the new bundled version. The plugin preserves custom changes and stops for a manual merge. Application keys and data must remain unchanged.
 
-Full Fluxer release upgrades use the [manual update procedure](manual-deployment.md#storage-and-updates).
+Use the [guided upgrade](installation.md#upgrade-the-fluxer-application) for the supported Fluxer release pair. Use the [manual update procedure](manual-deployment.md#storage-and-updates) for a custom deployment.
 
 ## Desktop client is outdated or slow
 

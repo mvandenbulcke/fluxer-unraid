@@ -14,14 +14,16 @@ This repository packages an unofficial beta plugin for Unraid 7. Keep changes wi
 
 Add a regression test when a change can affect application keys, persistent data, port bindings, or ownership of an existing Compose project. Documentation changes need accurate links and examples. They do not need new runtime tests.
 
-Keep the official upstream bundle separate from local packaging changes. `UPSTREAM.json` records the upstream release and checksum. Full Fluxer release upgrades remain manual and need a separate review of upstream changes.
+Keep the official upstream bundle separate from local packaging changes. `UPSTREAM.json` records the upstream release and checksum. Review the upstream changes before you add a guided upgrade. See the [release process](PUBLISHING.md#prepare-a-fluxer-upgrade).
 
 ## Required checks
 
-Use Bash, Python 3.11 or newer, PHP, and OpenSSL for these checks:
+Use Bash, Python 3.11 or newer, PHP, jq, and OpenSSL for these checks:
 
 ```bash
-bash -n setup.sh set-tokens.sh start.sh unraid-plugin/scripts/fluxerctl unraid-plugin/event/docker_started
+for script in setup.sh set-tokens.sh start.sh unraid-plugin/scripts/* unraid-plugin/event/docker_started; do
+  bash -n "$script" || exit
+done
 php -l unraid-plugin/include/control.php
 python3 -m unittest discover -s tests -v
 python3 tools/build-unraid-plugin.py
@@ -30,7 +32,7 @@ git diff --check
 
 The builder uses the version and repository defaults in its source. Add a matching `## YYYY.MM.DD.N` section to [CHANGELOG.md](CHANGELOG.md) before a release build or tag. For a release, pass the intended version and repository as described in [PUBLISHING.md](PUBLISHING.md). The GitHub checks must pass for the final commit.
 
-Version `2026.11.03.6` adds documentation and package checks without a runtime change. The GitHub release page records the current public version. Keep release and submission claims consistent with their recorded results.
+The GitHub release page records the current public version. Keep release and submission claims consistent with their recorded results.
 
 Changes to runtime behavior also need a separate Unraid 7 test system. Check installation, start, stop, update, and restart behavior for the affected path. Confirm that application keys and data remain unchanged. Record tests that you cannot complete.
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 const FLUXER_PLUGIN = '/usr/local/emhttp/plugins/fluxer';
 const FLUXER_PROJECT = '/mnt/user/appdata/fluxer';
 const FLUXER_LOG = '/var/log/fluxer-unraid.log';
+const FLUXER_UPGRADE_PENDING = FLUXER_PROJECT . '-upgrades/pending';
 
 ini_set('display_errors', '0');
 header('Content-Type: application/json; charset=utf-8');
@@ -91,6 +92,85 @@ function helper(array $arguments): array
         return [1, 'The controller is not installed.'];
     }
     return command(array_merge([$path], $arguments));
+}
+
+function releaseValue(mixed $value): ?string
+{
+    return is_string($value) && preg_match('/\A[A-Za-z0-9][A-Za-z0-9._-]{0,127}\z/', $value) ? $value : null;
+}
+
+function backupId(mixed $value): ?string
+{
+    return is_string($value) && preg_match('/\Abackup-[A-Za-z0-9]{6}\z/', $value) ? $value : null;
+}
+
+function operationInfo(string $action): array
+{
+    [$code, $text] = helper([$action . '_info']);
+    $info = $code === 0 ? json_decode($text, true) : null;
+    $states = ['idle', 'unavailable', 'ready', 'running', 'completed', 'failed', 'interrupted'];
+    if (!is_array($info) || !in_array($info['state'] ?? null, $states, true)) {
+        $info = [
+            'state' => 'unavailable',
+            'message' => $action === 'upgrade' ? 'The upgrade status is not available.' : 'The controller cannot read the restore status.',
+        ];
+    }
+    $requestId = $info['request_id'] ?? null;
+    $status = [
+        'available' => ($info['available'] ?? false) === true,
+        'state' => $info['state'],
+        'message' => is_string($info['message'] ?? null) ? $info['message'] : '',
+        'phase' => is_string($info['phase'] ?? null) ? $info['phase'] : null,
+        'request_id' => is_string($requestId) && preg_match('/\A[a-f0-9]{32}\z/', $requestId) ? $requestId : null,
+    ];
+    if ($action === 'upgrade') {
+        $status['installed'] = releaseValue($info['installed'] ?? null);
+        $status['target'] = releaseValue($info['target'] ?? null);
+        $status['backup'] = is_string($info['backup'] ?? null) ? $info['backup'] : null;
+        $status['available'] = $status['available'] && $status['target'] !== null;
+        return $status;
+    }
+
+    $backups = [];
+    foreach (is_array($info['backups'] ?? null) ? $info['backups'] : [] as $backup) {
+        if (!is_array($backup)) {
+            continue;
+        }
+        $id = backupId($backup['id'] ?? null);
+        $release = releaseValue($backup['release'] ?? null);
+        $time = $backup['created_at'] ?? null;
+        if ($id !== null && $release !== null && is_string($time) && preg_match('/\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\z/', $time)) {
+            $backups[] = ['id' => $id, 'release' => $release, 'created_at' => $time];
+        }
+    }
+    $status['backups'] = $backups;
+    $status['available'] = $status['available'] && $backups !== [];
+    $status['preserved'] = is_string($info['preserved'] ?? null) ? $info['preserved'] : null;
+    return $status;
+}
+
+function upgradeNeedsRecovery(array $info): bool
+{
+    return $info['phase'] === 'recovery' || $info['state'] === 'interrupted';
+}
+
+function retentionInfo(): ?array
+{
+    [$code, $text] = helper(['retention_info']);
+    $info = $code === 0 ? json_decode($text, true) : null;
+    $days = $info['days'] ?? null;
+    return is_int($days) && $days >= 0 && $days <= 3650 ? ['days' => $days] : null;
+}
+
+function autoUpgradeInfo(): ?array
+{
+    [$code, $text] = helper(['auto_upgrade_info']);
+    $info = $code === 0 ? json_decode($text, true) : null;
+    $enabled = $info['enabled'] ?? null;
+    if (!is_bool($enabled)) {
+        return null;
+    }
+    return ['enabled' => $enabled, 'last_attempt' => releaseValue($info['last_attempt'] ?? null)];
 }
 
 function prerequisites(): array
@@ -198,6 +278,9 @@ function saveTokens(string $dns, string $tunnel): void
         }
         reply(['ok' => false, 'message' => 'Operation in progress. Refresh the status before you save tokens.'], 409);
     }
+    if (file_exists(FLUXER_UPGRADE_PENDING) || is_link(FLUXER_UPGRADE_PENDING)) {
+        reply(['ok' => false, 'message' => 'Follow the recovery steps before you save tokens.'], 409);
+    }
     $changed = false;
     foreach (['cloudflare-dns-token' => $dns, 'cloudflare-tunnel-token' => $tunnel] as $name => $value) {
         if ($value === '') {
@@ -225,22 +308,27 @@ function saveTokens(string $dns, string $tunnel): void
 }
 
 $action = field('action');
-if (!in_array($action, ['configure', 'save_tokens', 'start', 'stop', 'status', 'setup_token'], true)) {
+if (!in_array($action, ['configure', 'save_tokens', 'start', 'stop', 'status', 'setup_token', 'upgrade', 'restore', 'retention_set', 'auto_upgrade_set'], true)) {
     reply(['ok' => false, 'message' => 'The requested action is not available.'], 400);
 }
-$configured = is_file(FLUXER_PROJECT . '/.env');
-
 if ($action === 'status') {
     $ready = prerequisites();
     [$code, $text] = helper(['status']);
+    $upgrade = operationInfo('upgrade');
+    $restore = operationInfo('restore');
     $domain = savedValue('FLUXER_DOMAIN');
     reply([
         'ok' => true,
-        'configured' => $configured,
+        'configured' => is_file(FLUXER_PROJECT . '/.env'),
         'prerequisites' => $ready,
         'exit_code' => $code,
         'status' => $text,
-        'pending' => strpos($text, 'Operation in progress.') !== false,
+        'pending' => strpos($text, 'Operation in progress.') !== false
+            || $upgrade['state'] === 'running' || $restore['state'] === 'running',
+        'upgrade' => $upgrade,
+        'restore' => $restore,
+        'retention' => retentionInfo(),
+        'auto_upgrade' => autoUpgradeInfo(),
         'url' => $domain !== null && validDomain($domain) ? 'https://' . $domain : null,
     ]);
 }
@@ -253,6 +341,7 @@ if ($action === 'setup_token') {
     reply(['ok' => true, 'token' => $value]);
 }
 
+$configured = is_file(FLUXER_PROJECT . '/.env');
 if ($action === 'configure') {
     if ($configured) {
         reply(['ok' => false, 'message' => 'Setup already exists. Use Save tokens to change the Cloudflare tokens.'], 409);
@@ -280,7 +369,37 @@ if ($action === 'configure') {
     reply(['ok' => true, 'message' => 'Setup saved. Configure the tunnel hostname, then select Start Fluxer.']);
 }
 
-if (!$configured) {
+if ($action === 'retention_set') {
+    $days = field('days');
+    if (!preg_match('/\A(?:0|[1-9][0-9]{0,3})\z/', $days) || (int) $days > 3650) {
+        reply(['ok' => false, 'message' => 'Enter a retention period from 0 to 3650 days.'], 400);
+    }
+    if (!prerequisites()['array_started']) {
+        reply(['ok' => false, 'message' => 'Start the Unraid array before you save retention settings.'], 409);
+    }
+    [$code, $text] = helper(['retention_set', $days]);
+    if ($code !== 0) {
+        reply(['ok' => false, 'message' => $text !== '' ? $text : 'The controller could not save retention settings.'], 409);
+    }
+    reply(['ok' => true, 'message' => 'Backup retention saved. The daily job applies this setting.']);
+}
+
+if ($action === 'auto_upgrade_set') {
+    $enabled = $_POST['enabled'] ?? null;
+    if (!in_array($enabled, ['on', 'off'], true)) {
+        reply(['ok' => false, 'message' => 'Select on or off for automatic upgrades.'], 400);
+    }
+    if (!prerequisites()['array_started']) {
+        reply(['ok' => false, 'message' => 'Start the Unraid array before you save automatic upgrades.'], 409);
+    }
+    [$code, $text] = helper(['auto_upgrade_set', $enabled]);
+    if ($code !== 0) {
+        reply(['ok' => false, 'message' => $text !== '' ? $text : 'The controller could not save automatic upgrades.'], 409);
+    }
+    reply(['ok' => true, 'message' => 'Automatic upgrade setting saved.']);
+}
+
+if (!$configured && $action !== 'restore') {
     reply(['ok' => false, 'message' => 'Save setup before you start Fluxer.'], 409);
 }
 
@@ -296,7 +415,40 @@ if ($action === 'start') {
         reply(['ok' => false, 'message' => $text !== '' ? $text : 'Fluxer is not ready to start.'], 409);
     }
 }
-if ($action === 'start' || $action === 'stop') {
+$arguments = [];
+$requestId = null;
+if ($action === 'upgrade') {
+    requireReady(prerequisites());
+    $target = releaseValue(field('target'));
+    $upgrade = operationInfo('upgrade');
+    if ($target === null || $target !== $upgrade['target']) {
+        reply(['ok' => false, 'message' => 'The bundled release changed. Refresh the status before you try again.'], 409);
+    }
+    if (!$upgrade['available'] || $upgrade['state'] === 'running' || upgradeNeedsRecovery($upgrade)) {
+        $message = $upgrade['message'] ?: 'The upgrade status is not available.';
+        reply(['ok' => false, 'message' => $message], 409);
+    }
+    $requestId = bin2hex(random_bytes(16));
+    $arguments = [$target, $requestId];
+}
+if ($action === 'restore') {
+    $id = backupId(field('backup_id'));
+    if ($id === null) {
+        reply(['ok' => false, 'message' => 'Select a valid backup.'], 400);
+    }
+    requireReady(prerequisites());
+    $restore = operationInfo('restore');
+    if (!in_array($id, array_column($restore['backups'], 'id'), true)) {
+        reply(['ok' => false, 'message' => 'The selected backup is unavailable. Refresh the status and select a backup.'], 409);
+    }
+    if (!$restore['available'] || $restore['state'] === 'running') {
+        $message = $restore['message'] ?: 'The controller cannot read the restore status.';
+        reply(['ok' => false, 'message' => $message], 409);
+    }
+    $requestId = bin2hex(random_bytes(16));
+    $arguments = [$id, $requestId];
+}
+if (in_array($action, ['start', 'stop', 'upgrade', 'restore'], true)) {
     $helper = FLUXER_PLUGIN . '/scripts/fluxerctl';
     if (!is_executable($helper) || is_link(FLUXER_LOG)) {
         reply(['ok' => false, 'message' => 'The controller could not start.'], 500);
@@ -308,11 +460,17 @@ if ($action === 'start' || $action === 'stop') {
     }
     fclose($log);
     chmod(FLUXER_LOG, 0600);
-    $background = 'nohup ' . escapeshellarg($helper) . ' ' . escapeshellarg($action)
+    $background = 'nohup ' . implode(' ', array_map('escapeshellarg', [$helper, $action, ...$arguments]))
         . ' </dev/null >>' . escapeshellarg(FLUXER_LOG) . ' 2>&1 &';
     exec($background, $unused, $code);
     if ($code !== 0) {
         reply(['ok' => false, 'message' => 'The controller could not start.'], 500);
     }
-    reply(['ok' => true, 'pending' => true, 'message' => $action === 'start' ? 'Start requested. The first download can take several minutes.' : 'Stop requested.']);
+    $message = match ($action) {
+        'start' => 'Start requested. The first download can take several minutes.',
+        'stop' => 'Stop requested.',
+        'upgrade' => 'Upgrade requested. The status refreshes while the upgrade runs.',
+        'restore' => 'Restore requested. The status refreshes while the restore runs.',
+    };
+    reply(['ok' => true, 'pending' => true, 'message' => $message, 'request_id' => $requestId]);
 }
